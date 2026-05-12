@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@nestjs/bull": "^11.0.4",
+    "@nestjs/common": "^11.1.19",
     "@nestjs/config": "^4.0.3",
+    "@nestjs/core": "^11.1.19",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.14",
@@ -31,7 +33,9 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
+    "reflect-metadata": "^0.2.2",
     "resend": "^6.12.3",
+    "rxjs": "^7.8.2",
     "socket.io": "^4.8.3",
     "uuid": "^13.0.0"
   },
@@ -53,6 +57,8 @@
     "pg": "^8.18.0",
     "prisma": "^7.4.1",
     "supertest": "^7.2.2",
-    "ts-jest": "^29.4.6"
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
   }
 }
