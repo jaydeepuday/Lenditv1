@@ -38,14 +38,14 @@ NODE_ENV=development
 PORT=3001
 FRONTEND_URL=http://localhost:3000
 
-# Database & Cache (Matches docker-compose)
-DATABASE_URL="postgresql://postgres:lendit_secret@localhost:5432/lendit_db?schema=public"
+# Database & Cache
+DATABASE_URL="postgresql://user:password@localhost:5432/db_name"
 REDIS_HOST=localhost
 REDIS_PORT=6379
 
 # Authentication Security
-JWT_ACCESS_SECRET=lendit_access_secret_dev_change_in_prod_minimum_32_chars
-JWT_REFRESH_SECRET=lendit_refresh_secret_dev_change_in_prod_minimum_32_chars
+JWT_ACCESS_SECRET="your_secure_access_secret_here"
+JWT_REFRESH_SECRET="your_secure_refresh_secret_here"
 JWT_ACCESS_EXPIRES_IN=15m
 JWT_REFRESH_EXPIRES_IN=7d
 OTP_EXPIRY_MINUTES=5
@@ -53,7 +53,7 @@ OTP_MAX_ATTEMPTS=3
 
 # Email Configuration (Resend)
 # Leave RESEND_API_KEY empty in dev to fallback to console-logging emails
-RESEND_API_KEY=re_123456789
+RESEND_API_KEY="your_resend_api_key"
 EMAIL_FROM="lendIT <onboarding@resend.dev>"
 
 # Marketplace Configuration
