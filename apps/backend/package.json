@@ -7,5 +7,8 @@
     "build": "nest build",
     "start": "node dist/src/main.js",
     "start:prod": "node dist/src/main.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
   }
 }
