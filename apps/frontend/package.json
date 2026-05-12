@@ -1,0 +1,12 @@
+{
+  "name": "lendit-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "serve . -p 3000",
+    "build": "echo \"No build required\""
+  },
+  "devDependencies": {
+    "serve": "^14.2.6"
+  }
+}

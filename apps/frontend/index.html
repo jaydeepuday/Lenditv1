@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description"
+        content="LendIT — Borrow & lend items from students near you. College-only item lending platform." />
+    <title>LendIT — Campus Lending</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" href="assets/LendIT-trans.png" type="image/png" />
+</head>
+
+<body>
+
+    <!-- ─── Navbar ──────────────────────────────────────────── -->
+    <nav class="navbar" id="navbar">
+        <div class="container">
+            <a class="navbar-logo" href="#/">
+                <img src="assets/LendIT-trans.png" alt="LendIT" />
+            </a>
+            <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+            <div class="navbar-links" id="navbar-links">
+                <!-- Links rendered dynamically by main.js -->
+            </div>
+        </div>
+    </nav>
+
+    <!-- ─── Error Banner ────────────────────────────────────── -->
+    <div id="error-banner"></div>
+
+    <!-- ─── Loading Spinner ─────────────────────────────────── -->
+    <div class="spinner-overlay" id="spinner">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- ─── App Container ──────────────────────────────────── -->
+    <main id="app" class="container">
+        <!-- Pages rendered here by main.js -->
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="main.js?v=5"></script>
+
+</body>
+
+</html>

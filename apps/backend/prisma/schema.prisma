@@ -1,0 +1,405 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum DurationType {
+  HOURS
+  DAYS
+}
+
+enum RentalType {
+  QUICK      // 4-hour preset, fixed ₹50
+  EXAM_PASS  // exam-slot preset, fixed ₹150
+}
+
+enum TransactionStatus {
+  REQUESTED
+  ACCEPTED
+  PAYMENT_PENDING
+  PAID
+  REJECTED
+  ACTIVE
+  GRACE
+  RETURNED
+  LATE
+  CANCELLED
+  DISPUTED
+}
+
+enum WalletTransactionType {
+  CREDIT
+  DEBIT
+  WITHDRAWAL_REQUEST
+  WITHDRAWAL_APPROVED
+  PLATFORM_FEE
+  HOLD
+  RELEASE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum CampusLocation {
+  OVAL_TREE
+  ICREATE
+  ADMIN
+  SPORTX
+  FOUNTAIN
+  BLU
+  RISE
+  RACE
+  LIBRARY
+}
+
+enum ReportType {
+  USER
+  ITEM
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+}
+
+// ─────────────────────────────────────────────────────────────
+// USER
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  college      String
+  isVerified   Boolean  @default(false)
+  role         Role     @default(USER)
+  warnings     Int      @default(0)
+  lastSeenAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  otp                  OTP?
+  wallet               Wallet?
+  itemsListed          Item[]               @relation("LenderItems")
+  borrowsAsRenter     BorrowTransaction[]  @relation("RenterTransactions")
+  borrowsAsLender     BorrowTransaction[]  @relation("LenderTransactions")
+  messagesSent        Message[]
+  refreshTokens       RefreshToken[]
+  filedReports        Report[]             @relation("FiledReports")
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────
+// REFRESH TOKEN
+// ─────────────────────────────────────────────────────────────
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────
+// OTP
+// ─────────────────────────────────────────────────────────────
+
+model OTP {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hash      String   // bcrypt hash of 6-digit OTP
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("otps")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ITEM
+// ─────────────────────────────────────────────────────────────
+
+model Item {
+  id           String   @id @default(uuid())
+  ownerId      String
+  owner        User     @relation("LenderItems", fields: [ownerId], references: [id], onDelete: Cascade)
+  title        String
+  description  String
+  images       String[] @default([])
+  category     String
+  pricePerHour Float?   // null if not available for hourly rental
+  pricePerDay  Float?   // null if not available for daily rental
+  maxHours     Int?     // Hard cap at 12 for hour-based items
+  isAvailable  Boolean  @default(true)
+  isActive     Boolean  @default(true) // soft delete
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // NEW: Upfront information fields to reduce chat spam
+  pickupLocation   String?
+  availabilityNote String?
+  conditionNote    String?
+
+  // Relations
+  transactions BorrowTransaction[]
+
+  @@map("items")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BORROW TRANSACTION
+// ─────────────────────────────────────────────────────────────
+
+model BorrowTransaction {
+  id             String            @id @default(uuid())
+  itemId         String
+  item           Item              @relation(fields: [itemId], references: [id])
+  renterId       String
+  renter         User              @relation("RenterTransactions", fields: [renterId], references: [id])
+  lenderId       String
+  lender         User              @relation("LenderTransactions", fields: [lenderId], references: [id])
+
+  // Preset Rental Mode (null = standard hourly/daily flow)
+  rentalType     RentalType?       // QUICK | EXAM_PASS; null means standard pricing
+  finalPrice     Float?            // Locked preset price (QUICK=50, EXAM_PASS=150)
+  platformFee    Float?            // ceil(finalPrice * 0.10); charged to renter
+
+  // Duration
+  durationType   DurationType
+  durationValue  Int               // 1-12 for HOURS, any for DAYS
+
+  // Financial — all amounts in INR, calculated and LOCKED at creation/payment
+  rentAmount     Float             // Base rent price
+  renterFee      Float             // Charged to renter (e.g. 10%)
+  lenderFee      Float             // Deducted from lender (now 0%)
+  totalPaid      Float             // rentAmount + renterFee (renter pays this)
+  lenderPayout   Float             // rentAmount - lenderFee (lender receives this)
+  platformEarned Float             // renterFee + lenderFee (platform earns this)
+
+  // Status
+  status         TransactionStatus @default(REQUESTED)
+  paymentStatus  PaymentStatus     @default(PENDING)
+
+  // Campus meetup locations (chosen by renter at request time)
+  pickupLocation CampusLocation?   // Where to pick up the item
+  returnLocation CampusLocation?   // Where to return the item
+
+  // Time-slot tracking (requested by renter at checkout)
+  requestedStartTime DateTime?
+  requestedEndTime   DateTime?
+
+  // Timeline (all set server-side)
+  acceptedAt     DateTime?         // When lender accepted the request
+  paidAt         DateTime?         // When escrow was charged
+  startedAt      DateTime?         // When renter clicked "Item Collected"
+  endsAt         DateTime?         // startedAt + duration (server-set)
+  graceEndsAt    DateTime?         // endsAt + 30 minutes (server-set)
+  returnedAt     DateTime?         // When marked RETURNED
+
+  // Escrow tracking
+  escrowHeld     Boolean           @default(false)
+  escrowReleased Boolean           @default(false)
+
+  // Soft buffer flag — true if previous booking ends within 30 min of this one starting.
+  // Does NOT block booking. Used for frontend warnings only.
+  isTightTurnover Boolean          @default(false)
+
+  // Timer job IDs (for BullMQ job cancellation if needed)
+  graceJobId     String?
+  lateJobId      String?
+
+  paymentStartedAt DateTime?       // When renter entered checkout
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  // Relations
+  chat           Chat?
+  walletCredits  WalletTransaction[]
+  otp            TransactionOTP?
+
+  // Removed broken unique constraint that prevented multiple CANCELLED/RETURNED records for the same item.
+  // The app already relies on item.isAvailable for concurrency control.
+
+  @@map("borrow_transactions")
+}
+
+// ─────────────────────────────────────────────────────────────
+// TRANSACTION OTP (Pickup & Return)
+// ─────────────────────────────────────────────────────────────
+
+model TransactionOTP {
+  id            String            @id @default(uuid())
+  transactionId String            @unique
+  transaction   BorrowTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  pickupOTP     String
+  returnOTP     String
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@map("transaction_otps")
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// CHAT
+// ─────────────────────────────────────────────────────────────
+
+model Chat {
+  id            String            @id @default(uuid())
+  transactionId String            @unique
+  transaction   BorrowTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  isUnlocked    Boolean           @default(false) // true only after ACCEPTED
+  createdAt     DateTime          @default(now())
+
+  // Relations
+  messages      Message[]
+
+  @@map("chats")
+}
+
+// ─────────────────────────────────────────────────────────────
+// MESSAGE
+// ─────────────────────────────────────────────────────────────
+
+model Message {
+  id        String   @id @default(uuid())
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id])
+  content   String
+  sentAt    DateTime @default(now())
+
+  @@map("messages")
+}
+
+// ─────────────────────────────────────────────────────────────
+// WALLET
+// ─────────────────────────────────────────────────────────────
+
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // NOTE: balance is derived from WalletTransactions — this is a cached sum
+  // Must ONLY be updated atomically alongside a WalletTransaction record
+  balance   Float    @default(0)
+  holdBalance Float  @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  transactions        WalletTransaction[]
+  withdrawalRequests  WithdrawalRequest[]
+
+  // Database Invariants (Recommended CHECK constraints):
+  // 1. balance >= 0
+  // 2. holdBalance >= 0
+  // 3. (balance - holdBalance) >= 0 (Spendable liquidity)
+  @@map("wallets")
+}
+
+// ─────────────────────────────────────────────────────────────
+// WALLET TRANSACTION (Ledger — immutable records)
+// ─────────────────────────────────────────────────────────────
+
+model WalletTransaction {
+  id              String                @id @default(uuid())
+  walletId        String
+  wallet          Wallet                @relation(fields: [walletId], references: [id])
+  type            WalletTransactionType
+  amount          Float
+  balanceAfter    Float                 // Snapshot of wallet balance after this tx
+  description     String
+  borrowTxId      String?               // FK to BorrowTransaction (nullable for withdrawals)
+  borrowTx        BorrowTransaction?    @relation(fields: [borrowTxId], references: [id])
+  createdAt       DateTime              @default(now())
+
+  @@map("wallet_transactions")
+}
+
+// ─────────────────────────────────────────────────────────────
+// WITHDRAWAL REQUEST
+// ─────────────────────────────────────────────────────────────
+
+model WithdrawalRequest {
+  id        String           @id @default(uuid())
+  walletId  String
+  wallet    Wallet           @relation(fields: [walletId], references: [id])
+  amount    Float            // Min ₹100
+  status    WithdrawalStatus @default(PENDING)
+  notes     String?          // Admin notes
+  reference String?
+  processedAt DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@map("withdrawal_requests")
+}
+
+// ─────────────────────────────────────────────────────────────
+// REPORT
+// ─────────────────────────────────────────────────────────────
+
+model Report {
+  id          String       @id @default(uuid())
+  reporterId  String
+  reporter    User         @relation("FiledReports", fields: [reporterId], references: [id])
+  reportedId  String       // User ID or Item ID
+  type        ReportType
+  reason      String
+  status      ReportStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+
+  @@map("reports")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  type         String
+  txId         String?
+  userId       String?
+  amount       Float?
+  metadata     Json?
+  severity     String   @default("INFO")
+  previousHash String?
+  hash         String?
+  createdAt    DateTime @default(now())
+
+  @@map("audit_logs")
+}

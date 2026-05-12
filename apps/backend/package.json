@@ -1,0 +1,11 @@
+{
+  "name": "lendit-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/src/main.js",
+    "start:prod": "node dist/src/main.js"
+  }
+}
