@@ -39,13 +39,13 @@ PORT=3001
 FRONTEND_URL=http://localhost:3000
 
 # Database & Cache
-DATABASE_URL="postgresql://user:password@localhost:5432/db_name"
+DATABASE_URL="<PASTE_YOUR_DATABASE_CONNECTION_STRING_HERE>"
 REDIS_HOST=localhost
 REDIS_PORT=6379
 
 # Authentication Security
-JWT_ACCESS_SECRET="your_secure_access_secret_here"
-JWT_REFRESH_SECRET="your_secure_refresh_secret_here"
+JWT_ACCESS_SECRET="<CREATE_A_RANDOM_SECRET_STRING_HERE>"
+JWT_REFRESH_SECRET="<CREATE_ANOTHER_RANDOM_SECRET_STRING_HERE>"
 JWT_ACCESS_EXPIRES_IN=15m
 JWT_REFRESH_EXPIRES_IN=7d
 OTP_EXPIRY_MINUTES=5
@@ -53,7 +53,7 @@ OTP_MAX_ATTEMPTS=3
 
 # Email Configuration (Resend)
 # Leave RESEND_API_KEY empty in dev to fallback to console-logging emails
-RESEND_API_KEY="your_resend_api_key"
+RESEND_API_KEY="<PASTE_YOUR_RESEND_API_KEY_HERE>"
 EMAIL_FROM="lendIT <onboarding@resend.dev>"
 
 # Marketplace Configuration
