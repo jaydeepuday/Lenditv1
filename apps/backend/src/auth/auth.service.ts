@@ -68,7 +68,7 @@ export class AuthService {
                         passwordHash,
                         name: dto.name,
                         college: dto.college,
-                        isVerified: false,
+                        isVerified: bypassOtp,
                     },
                 });
 
@@ -88,8 +88,12 @@ export class AuthService {
             this.logger.error('Signup transaction failed (possibly email provider error)', error);
             throw new InternalServerErrorException('Unable to send OTP right now. Please try again.');
         }
+        return {
+            message: bypassOtp
+                ? 'Account created successfully'
+                : 'Account created. Please verify your email with the OTP sent.'
+        };
 
-        return { message: 'Account created. Please verify your email with the OTP sent.' };
     }
 
     // ─── Generate & Send OTP ─────────────────────────────────────────────────
