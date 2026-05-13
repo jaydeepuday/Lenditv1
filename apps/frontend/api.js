@@ -10,7 +10,7 @@
 // Allows the frontend to seamlessly switch between local dev and production backend
 export const BACKEND_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:3001'
-    : 'https://ACTUAL-RENDER-URL.onrender.com'; // ⚠️ Replace this with your REAL Render URL!
+    : 'https://lendit-backend-tr3h.onrender.com'; // ⚠️ Replace this with your REAL Render URL!
 
 const API_BASE = `${BACKEND_URL}/api/v1`;
 
