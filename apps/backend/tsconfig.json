@@ -15,8 +15,14 @@
         "strict": true,
         "forceConsistentCasingInFileNames": true,
         "noFallthroughCasesInSwitch": true,
-        "esModuleInterop": true,
-        "ignoreDeprecations": "6.0"
+        "esModuleInterop": true
     },
-    "exclude": ["node_modules", "dist", "test", "**/*spec.ts", "test_guards.ts", "make-admin.ts"]
+    "exclude": [
+        "node_modules",
+        "dist",
+        "test",
+        "**/*spec.ts",
+        "test_guards.ts",
+        "make-admin.ts"
+    ]
 }
