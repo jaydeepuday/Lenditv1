@@ -21,6 +21,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { AppController } from './app.controller';
 
 @Module({
     imports: [
@@ -65,6 +66,7 @@ import { ThrottlerGuard } from '@nestjs/throttler';
         AdminModule,
         ReportsModule,
     ],
+    controllers: [AppController],
     providers: [
         // Global rate limiter
         { provide: APP_GUARD, useClass: ThrottlerGuard },
