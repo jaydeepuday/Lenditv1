@@ -71,10 +71,11 @@ export class AuthService {
         // 3. Hash password
         const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
 
+        let newUser: User;
         // 4. Create user + wallet + OTP atomically and send email
         try {
-            await this.prisma.$transaction(async (tx) => {
-                const newUser = await tx.user.create({
+            newUser = await this.prisma.$transaction(async (tx) => {
+                const createdUser = await tx.user.create({
                     data: {
                         email,
                         passwordHash,
@@ -86,12 +87,14 @@ export class AuthService {
 
                 // Create wallet for the new user immediately
                 await tx.wallet.create({
-                    data: { userId: newUser.id, balance: 0 },
+                    data: { userId: createdUser.id, balance: 0 },
                 });
 
                 // Generate and send OTP within the transaction
                 // If email fails, it throws and rolls back everything!
-                await this.generateAndSendOtp(newUser.id, email, dto.name, tx);
+                await this.generateAndSendOtp(createdUser.id, email, dto.name, tx);
+
+                return createdUser;
             });
         } catch (error) {
             if (error instanceof ConflictException || error instanceof BadRequestException) {
@@ -108,8 +111,7 @@ export class AuthService {
         };
 
         if (bypassOtp) {
-            const user = await this.prisma.user.findUnique({ where: { email } });
-            const tokens = await this.generateTokens(user);
+            const tokens = await this.generateTokens(newUser);
             result.tokens = tokens;
         }
 
