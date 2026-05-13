@@ -24,9 +24,13 @@ async function bootstrap() {
     // Cookie parser (for HTTP-only JWT cookies)
     app.use(cookieParser());
 
-    // CORS — allow all origins (ngrok, localhost, LAN IPs)
+    // CORS — allow all origins (ngrok, localhost, LAN IPs) and specific production frontends
     app.enableCors({
-        origin: true, // reflects request origin — safe for cookie-auth dev setup
+        origin: [
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'https://lendit-ashen.vercel.app'
+        ],
         credentials: true,
         methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization'],
