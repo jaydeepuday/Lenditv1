@@ -129,4 +129,8 @@ export class ItemFilterDto {
     @IsOptional()
     @Type(() => Number)
     limit?: number = 20;
+
+    @IsOptional()
+    @IsString()
+    sort?: string;
 }
