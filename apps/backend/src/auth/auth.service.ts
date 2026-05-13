@@ -33,6 +33,9 @@ export class AuthService {
     async signup(dto: SignupDto) {
         const email = dto.email.toLowerCase().trim();
 
+        const bypassOtp =
+            process.env.DISABLE_EMAIL_VERIFICATION === 'true';
+
         // 1. Allowlist-based student email validation (server-side)
         if (!isStudentEmail(email)) {
             throw new BadRequestException(
@@ -45,7 +48,9 @@ export class AuthService {
         if (existing) {
             if (!existing.isVerified) {
                 // Resend OTP for unverified account — don't expose it exists
-                await this.generateAndSendOtp(existing.id, email, existing.name);
+                if (process.env.DISABLE_EMAIL_VERIFICATION !== 'true') {
+                    await this.generateAndSendOtp(existing.id, email, existing.name);
+                }
                 return { message: 'OTP sent. Please verify your email.' };
             }
             throw new ConflictException('An account with this email already exists');
@@ -101,7 +106,7 @@ export class AuthService {
             create: { userId, hash, attempts: 0, expiresAt, used: false },
         });
 
-        await this.emailService.sendOtpEmail(email, otpCode, name);
+
     }
 
     // ─── Verify OTP ──────────────────────────────────────────────────────────
