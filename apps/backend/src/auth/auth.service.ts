@@ -100,6 +100,7 @@ export class AuthService {
 
     async generateAndSendOtp(userId: string, email: string, name: string, prismaClient: any = this.prisma): Promise<void> {
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        console.log('Generated OTP:', otpCode);
         const hash = await bcrypt.hash(otpCode, BCRYPT_ROUNDS);
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
