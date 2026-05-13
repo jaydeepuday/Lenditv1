@@ -1413,12 +1413,19 @@ function renderAuth() {
 
         showLoading();
         try {
-          await api.signup({ name, email, college, password });
+          const res = await api.signup({ name, email, college, password });
           hideLoading();
-          // Transition to OTP screen
-          otpEmail = email;
-          mode = 'otp';
-          render();
+          
+          if (res.requiresVerification === false) {
+            // Beta bypass: user is already verified and cookies are set
+            await checkAuth(); // Refresh global user state
+            navigate('#/');
+          } else {
+            // Production: transition to OTP screen
+            otpEmail = email;
+            mode = 'otp';
+            render();
+          }
         } catch (err) {
           hideLoading();
           $msg.textContent = err.message || 'Signup failed';

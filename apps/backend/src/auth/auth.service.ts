@@ -53,8 +53,11 @@ export class AuthService {
                         data: { isVerified: true },
                     });
 
+                    const tokens = await this.generateTokens(existing);
                     return {
                         message: 'Account auto-verified in beta mode.',
+                        requiresVerification: false,
+                        tokens,
                     };
                 }
 
@@ -97,11 +100,20 @@ export class AuthService {
             this.logger.error('Signup transaction failed (possibly email provider error)', error);
             throw new InternalServerErrorException('Unable to send OTP right now. Please try again.');
         }
-        return {
+        const result: any = {
             message: bypassOtp
                 ? 'Account created successfully'
-                : 'Account created. Please verify your email with the OTP sent.'
+                : 'Account created. Please verify your email with the OTP sent.',
+            requiresVerification: !bypassOtp,
         };
+
+        if (bypassOtp) {
+            const user = await this.prisma.user.findUnique({ where: { email } });
+            const tokens = await this.generateTokens(user);
+            result.tokens = tokens;
+        }
+
+        return result;
 
     }
 

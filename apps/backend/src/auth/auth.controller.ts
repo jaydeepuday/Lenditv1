@@ -37,7 +37,12 @@ export class AuthController {
     @Post('signup')
     @Throttle({ default: { limit: 5, ttl: 60000 } })
     async signup(@Body() dto: SignupDto, @Res({ passthrough: true }) res: Response) {
-        return this.authService.signup(dto);
+        const result = await this.authService.signup(dto);
+        if (result.tokens) {
+            this.setTokenCookies(res, result.tokens.accessToken, result.tokens.refreshToken);
+            delete result.tokens;
+        }
+        return result;
     }
 
     @Public()
