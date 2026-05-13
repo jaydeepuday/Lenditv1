@@ -47,10 +47,19 @@ export class AuthService {
         const existing = await this.prisma.user.findUnique({ where: { email } });
         if (existing) {
             if (!existing.isVerified) {
-                // Resend OTP for unverified account — don't expose it exists
-                if (process.env.DISABLE_EMAIL_VERIFICATION !== 'true') {
-                    await this.generateAndSendOtp(existing.id, email, existing.name);
+                if (process.env.DISABLE_EMAIL_VERIFICATION === 'true') {
+                    await this.prisma.user.update({
+                        where: { id: existing.id },
+                        data: { isVerified: true },
+                    });
+
+                    return {
+                        message: 'Account auto-verified in beta mode.',
+                    };
                 }
+
+                await this.generateAndSendOtp(existing.id, email, existing.name);
+
                 return { message: 'OTP sent. Please verify your email.' };
             }
             throw new ConflictException('An account with this email already exists');
