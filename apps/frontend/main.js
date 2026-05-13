@@ -464,7 +464,7 @@ async function renderAdmin() {
         const alreadyRemoved = isItem && r.item && !r.item.isActive;
 
         return '<div class="card" id="report-' + r.id + '" style="margin-bottom:16px; padding:16px; display:flex; gap:16px; align-items:flex-start;">'
-          + (isItem ? '<img src="' + imgSrc + '" alt="" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0;" />' : '')
+          + (isItem ? '<img src="' + imgSrc + '" alt="" style="width:80px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0;" loading="lazy" />' : '')
           + '<div style="flex:1; min-width:0;">'
           + '<div style="font-weight:600; margin-bottom:4px;">'
           + (r.type === 'ITEM' ? '📦 ' : '👤 ') + targetName + targetExtra
@@ -807,7 +807,7 @@ async function renderItemDetail(id) {
       <a href="#/browse" style="font-size:0.875rem; color:var(--color-text-muted); margin-bottom:16px; display:inline-block;">← Back to Browse</a>
       <div class="item-detail">
         <div class="item-images">
-          <img src="${itemImage(item.images)}" alt="${escapeHtml(item.title)}" />
+          <img src="${itemImage(item.images)}" alt="${escapeHtml(item.title)}" loading="lazy" />
         </div>
         <div class="item-info">
           <h1>${escapeHtml(item.title)}</h1>
@@ -1669,7 +1669,7 @@ async function renderRentals() {
 
         return `
           <div class="rental-card">
-            <img class="rental-card-img" src="${itemImage(itemData.images)}" alt="${escapeHtml(itemData.title || '')}" />
+            <img class="rental-card-img" src="${itemImage(itemData.images)}" alt="${escapeHtml(itemData.title || '')}" loading="lazy" />
             <div class="rental-card-body">
               <div class="rental-card-title">${escapeHtml(itemData.title || 'Unknown Item')}</div>
               <div class="rental-card-meta">
@@ -1821,7 +1821,7 @@ function renderListItem() {
 
           <div class="form-group">
             <label for="item-images-upload" style="display:flex; justify-content:space-between;">
-              <span>Upload Image(s) <span style="opacity:0.6">(optional, max 3)</span></span>
+              <span>Upload Image(s) <span style="opacity:0.6">(optional, max 2)</span></span>
             </label>
             <input type="file" class="form-input" id="item-images-upload" accept="image/*" multiple />
             <!-- Store loaded base64 images here -->
@@ -1857,41 +1857,76 @@ function renderListItem() {
   const $base64 = document.getElementById('item-images-base64');
 
   listen($fileInput, 'change', async () => {
-    const files = Array.from($fileInput.files).slice(0, 3);
+    const files = Array.from($fileInput.files).slice(0, 2);
     $preview.innerHTML = '';
+    
+    if ($fileInput.files.length > 2) {
+      showError('Only the first 2 images will be uploaded');
+    }
 
-    // Compress image via canvas (max 800px, JPEG 75%)
-    const compressImage = (file) => new Promise(resolve => {
+    // Compress image via canvas (max 600px, WebP 60%)
+    const compressImage = (file) => new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = e => {
         const img = new Image();
         img.onload = () => {
-          const MAX = 800;
-          let w = img.width, h = img.height;
-          if (w > MAX || h > MAX) {
-            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-            else { w = Math.round(w * MAX / h); h = MAX; }
+          try {
+            const MAX = 600;
+            let w = img.width, h = img.height;
+            if (w > MAX || h > MAX) {
+              if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+              else { w = Math.round(w * MAX / h); h = MAX; }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            
+            // WebP 0.6 for extreme efficiency
+            const dataUrl = canvas.toDataURL('image/webp', 0.6);
+            
+            // Size Guard: Reject if > 300KB (Base64 is ~1.33x original, so ~400k chars)
+            if (dataUrl.length > 400000) {
+              throw new Error(`Image "${file.name}" is too large even after compression. Try a smaller photo.`);
+            }
+
+            // Cleanup
+            img.src = '';
+            canvas.width = 0; canvas.height = 0;
+            
+            resolve(dataUrl);
+          } catch (err) {
+            reject(err);
           }
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', 0.75));
         };
+        img.onerror = () => reject(new Error('Failed to load image'));
         img.src = e.target.result;
       };
+      reader.onerror = () => reject(new Error('Failed to read file'));
       reader.readAsDataURL(file);
     });
 
-    const base64s = await Promise.all(files.map(compressImage));
-    $base64.value = JSON.stringify(base64s);
+    try {
+      showLoading();
+      const base64s = await Promise.all(files.map(compressImage));
+      $base64.value = JSON.stringify(base64s);
 
-    // Show thumbnails
-    base64s.forEach(src => {
-      const thumb = document.createElement('img');
-      thumb.src = src;
-      thumb.style.cssText = 'width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #eee;';
-      $preview.appendChild(thumb);
-    });
+      // Show thumbnails
+      base64s.forEach(src => {
+        const thumb = document.createElement('img');
+        thumb.src = src;
+        thumb.loading = 'lazy';
+        thumb.style.cssText = 'width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #eee;';
+        $preview.appendChild(thumb);
+      });
+    } catch (err) {
+      showError(err.message || 'Image processing failed');
+      $fileInput.value = ''; // Reset
+      $base64.value = '';
+      $preview.innerHTML = '';
+    } finally {
+      hideLoading();
+    }
   }, signal);
 
   const $form = document.getElementById('list-form');
