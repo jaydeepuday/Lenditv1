@@ -34,7 +34,7 @@ export class AuthService {
         const email = dto.email.toLowerCase().trim();
 
         const bypassOtp =
-            process.env.DISABLE_EMAIL_VERIFICATION === 'true';
+            this.configService.get<string>('DISABLE_EMAIL_VERIFICATION') === 'true';
 
         // 1. Allowlist-based student email validation (server-side)
         if (!isStudentEmail(email)) {
@@ -90,9 +90,11 @@ export class AuthService {
                     data: { userId: createdUser.id, balance: 0 },
                 });
 
-                // Generate and send OTP within the transaction
+                // Generate and send OTP within the transaction if not in beta bypass mode
                 // If email fails, it throws and rolls back everything!
-                await this.generateAndSendOtp(createdUser.id, email, dto.name, tx);
+                if (!bypassOtp) {
+                    await this.generateAndSendOtp(createdUser.id, email, dto.name, tx);
+                }
 
                 return createdUser;
             });

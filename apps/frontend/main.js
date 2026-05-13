@@ -1416,7 +1416,7 @@ function renderAuth() {
           const res = await api.signup({ name, email, college, password });
           hideLoading();
           
-          if (res.requiresVerification === false) {
+          if (res.requiresVerification === false || res.message?.toLowerCase().includes('successfully')) {
             // Beta bypass: user is already verified and cookies are set
             await checkAuth(); // Refresh global user state
             navigate('#/');
