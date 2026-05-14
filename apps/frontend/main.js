@@ -1128,7 +1128,6 @@ async function renderItemDetail(id) {
           if (btn) btn.dataset.loading = '0';
         }
       }, signal);
-    }
   }
 }
 
