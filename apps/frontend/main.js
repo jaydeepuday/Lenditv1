@@ -98,7 +98,7 @@ function hideLoading() {
 function showError(msg) {
   // Update content immediately
   $errorBanner.innerHTML = `<span style="flex:1">${msg}</span><button style="margin-left:12px;color:rgba(255,255,255,0.8);font-weight:bold;padding:4px 8px;border-radius:50%;" onclick="this.parentElement.classList.remove('visible')" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.8)'">✕</button>`;
-  
+
   if ($errorBanner.classList.contains('visible')) {
     // Subtle "pulse" animation if already visible to signal new error
     $errorBanner.animate([
@@ -109,7 +109,7 @@ function showError(msg) {
   }
 
   $errorBanner.classList.add('visible');
-  
+
   // Clear any existing timeout to reset the countdown
   if ($errorBanner._timeout) clearTimeout($errorBanner._timeout);
   $errorBanner._timeout = setTimeout(() => {
@@ -124,7 +124,7 @@ const $navbar = document.querySelector('.navbar');
 
 window.addEventListener('scroll', () => {
   if (document.body.classList.contains('nav-open')) return; // Don't hide if mobile menu is open
-  
+
   const currentScrollY = window.scrollY;
   if (currentScrollY > lastScrollY && currentScrollY > 100) {
     $navbar.classList.add('navbar-hidden');
@@ -912,49 +912,49 @@ async function renderItemDetail(id) {
 
   const $bookingForm = document.getElementById('booking-form');
   if ($bookingForm) {
-      const $interactiveUI = document.getElementById('booking-interactive-ui');
-      const $btnStandard = document.getElementById('btn-standard');
-      
-      const sessionPayload = JSON.parse(sessionStorage.getItem('lendit_rebook_payload') || 'null');
-      let stateDate = null;
-      let stateStartHr = null;
-      let stateEndHr = null;
+    const $interactiveUI = document.getElementById('booking-interactive-ui');
+    const $btnStandard = document.getElementById('btn-standard');
 
-      // Friction Reduction: Restore last selection on recovery flow (Rebook)
-      if (sessionPayload) {
-          const sDate = new Date(sessionPayload.pickupDate);
-          const eDate = new Date(sessionPayload.returnDate);
-          const yyyy = sDate.getFullYear();
-          const mm = String(sDate.getMonth() + 1).padStart(2, '0');
-          const dd = String(sDate.getDate()).padStart(2, '0');
-          stateDate = `${yyyy}-${mm}-${dd}`;
-          stateStartHr = sDate.getHours();
-          stateEndHr = eDate.getHours();
-          sessionStorage.removeItem('lendit_rebook_payload'); // Single-use restoration
-      }
-      
-      const dates = [];
-      const now = new Date();
-      for (let i = 0; i < 7; i++) {
-          const d = new Date(now);
-          d.setDate(d.getDate() + i);
-          const yyyy = d.getFullYear();
-          const mm = String(d.getMonth() + 1).padStart(2, '0');
-          const dd = String(d.getDate()).padStart(2, '0');
-          const val = `${yyyy}-${mm}-${dd}`;
-          let label = (i === 0) ? 'Today' : (i === 1) ? 'Tomorrow' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-          dates.push({ label, val, isToday: i === 0 });
-      }
+    const sessionPayload = JSON.parse(sessionStorage.getItem('lendit_rebook_payload') || 'null');
+    let stateDate = null;
+    let stateStartHr = null;
+    let stateEndHr = null;
 
-      const times = [];
-      for (let i = 8; i <= 22; i++) {
-          const ampm = i >= 12 ? 'PM' : 'AM';
-          const h = i > 12 ? i - 12 : (i === 0 ? 12 : i);
-          times.push({ label: `${h}:00 ${ampm}`, val: i });
-      }
+    // Friction Reduction: Restore last selection on recovery flow (Rebook)
+    if (sessionPayload) {
+      const sDate = new Date(sessionPayload.pickupDate);
+      const eDate = new Date(sessionPayload.returnDate);
+      const yyyy = sDate.getFullYear();
+      const mm = String(sDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(sDate.getDate()).padStart(2, '0');
+      stateDate = `${yyyy}-${mm}-${dd}`;
+      stateStartHr = sDate.getHours();
+      stateEndHr = eDate.getHours();
+      sessionStorage.removeItem('lendit_rebook_payload'); // Single-use restoration
+    }
 
-      function updateUI() {
-          let html = `
+    const dates = [];
+    const now = new Date();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() + i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const val = `${yyyy}-${mm}-${dd}`;
+      let label = (i === 0) ? 'Today' : (i === 1) ? 'Tomorrow' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      dates.push({ label, val, isToday: i === 0 });
+    }
+
+    const times = [];
+    for (let i = 8; i <= 22; i++) {
+      const ampm = i >= 12 ? 'PM' : 'AM';
+      const h = i > 12 ? i - 12 : (i === 0 ? 12 : i);
+      times.push({ label: `${h}:00 ${ampm}`, val: i });
+    }
+
+    function updateUI() {
+      let html = `
             <style>
               .date-row::-webkit-scrollbar { display: none; }
               .date-row-wrapper::after {
@@ -969,165 +969,165 @@ async function renderItemDetail(id) {
               }
             </style>
           `;
-          html += `<div style="margin-top:8px;">
+      html += `<div style="margin-top:8px;">
             <div style="font-weight:700; margin-bottom:12px; display:block; font-size:1rem;">📅 Pickup Date</div>
             <div class="date-row-wrapper" style="position:relative; margin-right:-24px; padding-right:24px;">
               <div class="date-row" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:12px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none;">`;
-          dates.forEach(d => {
-              const bg = stateDate === d.val ? '#16a34a' : 'var(--color-surface-hover)';
-              const color = stateDate === d.val ? '#fff' : 'var(--color-text-main)';
-              html += `<button type="button" class="date-pill" data-val="${d.val}" style="flex:0 0 auto; scroll-snap-align:start; white-space:nowrap; background:${bg}; color:${color}; border:1px solid ${stateDate === d.val ? '#16a34a' : 'var(--color-border)'}; padding:10px 16px; border-radius:999px; font-weight:600; cursor:pointer;">${d.label}</button>`;
-          });
-          html += `</div></div></div>`;
+      dates.forEach(d => {
+        const bg = stateDate === d.val ? '#16a34a' : 'var(--color-surface-hover)';
+        const color = stateDate === d.val ? '#fff' : 'var(--color-text-main)';
+        html += `<button type="button" class="date-pill" data-val="${d.val}" style="flex:0 0 auto; scroll-snap-align:start; white-space:nowrap; background:${bg}; color:${color}; border:1px solid ${stateDate === d.val ? '#16a34a' : 'var(--color-border)'}; padding:10px 16px; border-radius:999px; font-weight:600; cursor:pointer;">${d.label}</button>`;
+      });
+      html += `</div></div></div>`;
 
-          if (stateDate) {
-              const isToday = dates[0].val === stateDate;
-              const currentHour = now.getHours();
+      if (stateDate) {
+        const isToday = dates[0].val === stateDate;
+        const currentHour = now.getHours();
 
-              html += `<div style="margin-top:16px;">
+        html += `<div style="margin-top:16px;">
                 <div style="font-weight:700; margin-bottom:12px; display:block; font-size:1rem;">⏰ Pickup Time</div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">`;
-              
-              times.forEach(t => {
-                  const past = isToday && t.val <= currentHour;
-                  if (past) return;
-                  const bg = stateStartHr === t.val ? '#16a34a' : 'var(--color-surface-hover)';
-                  const color = stateStartHr === t.val ? '#fff' : 'var(--color-text-main)';
-                  html += `<button type="button" class="start-pill" data-val="${t.val}" style="background:${bg}; color:${color}; border:1px solid ${stateStartHr === t.val ? '#16a34a' : 'var(--color-border)'}; padding:10px 18px; border-radius:999px; font-weight:600; cursor:pointer;">${t.label}</button>`;
-              });
-              html += `</div></div>`;
 
-              if (stateStartHr !== null) {
-                  html += `<div style="margin-top:16px;">
+        times.forEach(t => {
+          const past = isToday && t.val <= currentHour;
+          if (past) return;
+          const bg = stateStartHr === t.val ? '#16a34a' : 'var(--color-surface-hover)';
+          const color = stateStartHr === t.val ? '#fff' : 'var(--color-text-main)';
+          html += `<button type="button" class="start-pill" data-val="${t.val}" style="background:${bg}; color:${color}; border:1px solid ${stateStartHr === t.val ? '#16a34a' : 'var(--color-border)'}; padding:10px 18px; border-radius:999px; font-weight:600; cursor:pointer;">${t.label}</button>`;
+        });
+        html += `</div></div>`;
+
+        if (stateStartHr !== null) {
+          html += `<div style="margin-top:16px;">
                     <div style="font-weight:700; margin-bottom:12px; display:block; font-size:1rem;">⏰ Return Time</div>
                     <div style="display:flex; gap:8px; flex-wrap:wrap;">`;
-                  
-                  times.forEach(t => {
-                      if (t.val <= stateStartHr) return;
-                      const bg = stateEndHr === t.val ? '#16a34a' : 'var(--color-surface-hover)';
-                      const color = stateEndHr === t.val ? '#fff' : 'var(--color-text-main)';
-                      html += `<button type="button" class="end-pill" data-val="${t.val}" style="background:${bg}; color:${color}; border:1px solid ${stateEndHr === t.val ? '#16a34a' : 'var(--color-border)'}; padding:10px 18px; border-radius:999px; font-weight:600; cursor:pointer;">${t.label}</button>`;
-                  });
-                  html += `</div></div>`;
-              }
-          }
 
-          if (stateStartHr !== null && stateEndHr !== null) {
-              const hours = stateEndHr - stateStartHr;
-              let baseRent = 0;
-              if (item.pricePerDay && item.pricePerHour) {
-                  const days = Math.floor(hours / 24);
-                  const remHours = hours % 24;
-                  baseRent = Math.min((days * item.pricePerDay) + (remHours * item.pricePerHour), (days + 1) * item.pricePerDay);
-              } else if (item.pricePerDay) {
-                  baseRent = Math.ceil(hours / 24) * item.pricePerDay;
-              } else if (item.pricePerHour) {
-                  baseRent = hours * item.pricePerHour;
-              }
+          times.forEach(t => {
+            if (t.val <= stateStartHr) return;
+            const bg = stateEndHr === t.val ? '#16a34a' : 'var(--color-surface-hover)';
+            const color = stateEndHr === t.val ? '#fff' : 'var(--color-text-main)';
+            html += `<button type="button" class="end-pill" data-val="${t.val}" style="background:${bg}; color:${color}; border:1px solid ${stateEndHr === t.val ? '#16a34a' : 'var(--color-border)'}; padding:10px 18px; border-radius:999px; font-weight:600; cursor:pointer;">${t.label}</button>`;
+          });
+          html += `</div></div>`;
+        }
+      }
 
-              html += `<div style="margin-top:24px; padding:16px; border-radius:12px; background:rgba(22, 163, 74, 0.05); text-align:center; border:1px solid rgba(22, 163, 74, 0.1);">
+      if (stateStartHr !== null && stateEndHr !== null) {
+        const hours = stateEndHr - stateStartHr;
+        let baseRent = 0;
+        if (item.pricePerDay && item.pricePerHour) {
+          const days = Math.floor(hours / 24);
+          const remHours = hours % 24;
+          baseRent = Math.min((days * item.pricePerDay) + (remHours * item.pricePerHour), (days + 1) * item.pricePerDay);
+        } else if (item.pricePerDay) {
+          baseRent = Math.ceil(hours / 24) * item.pricePerDay;
+        } else if (item.pricePerHour) {
+          baseRent = hours * item.pricePerHour;
+        }
+
+        html += `<div style="margin-top:24px; padding:16px; border-radius:12px; background:rgba(22, 163, 74, 0.05); text-align:center; border:1px solid rgba(22, 163, 74, 0.1);">
                   <div style="font-size:0.95rem; color:var(--color-text-muted); margin-bottom:4px;">🕒 Duration: ${hours} hour${hours > 1 ? 's' : ''}</div>
                   <div style="font-size:1.25rem; font-weight:800; color:var(--color-primary);">💸 Estimated Total: ₹${baseRent}</div>
               </div>`;
 
-              $btnStandard.disabled = false;
-              $btnStandard.textContent = '⚡ Rent now';
-              $btnStandard.style.opacity = '1';
-          } else {
-              $btnStandard.disabled = true;
-              $btnStandard.textContent = 'Select time to continue';
-              $btnStandard.style.opacity = '0.5';
-          }
-          
-          if ($interactiveUI) $interactiveUI.innerHTML = html;
-
-          $interactiveUI?.querySelectorAll('.date-pill').forEach(btn => {
-              btn.addEventListener('click', (e) => {
-                  stateDate = e.target.dataset.val;
-                  stateStartHr = null;
-                  stateEndHr = null;
-                  updateUI();
-                  setTimeout(() => {
-                      const selectedElement = $interactiveUI.querySelector('.date-pill[data-val="' + stateDate + '"]');
-                      if (selectedElement) selectedElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-                  }, 10);
-              });
-          });
-          $interactiveUI?.querySelectorAll('.start-pill').forEach(btn => {
-              btn.addEventListener('click', (e) => {
-                  stateStartHr = parseInt(e.target.dataset.val, 10);
-                  stateEndHr = stateStartHr + 1;
-                  if (stateEndHr > 22) stateEndHr = 22;
-                  updateUI();
-              });
-          });
-          $interactiveUI?.querySelectorAll('.end-pill').forEach(btn => {
-              btn.addEventListener('click', (e) => {
-                  stateEndHr = parseInt(e.target.dataset.val, 10);
-                  updateUI();
-              });
-          });
+        $btnStandard.disabled = false;
+        $btnStandard.textContent = '⚡ Rent now';
+        $btnStandard.style.opacity = '1';
+      } else {
+        $btnStandard.disabled = true;
+        $btnStandard.textContent = 'Select time to continue';
+        $btnStandard.style.opacity = '0.5';
       }
 
-      updateUI();
+      if ($interactiveUI) $interactiveUI.innerHTML = html;
 
-      listen($bookingForm, 'submit', async (e) => {
-        e.preventDefault();
-        if (!requireAuth()) return;
-        
-        const btn = document.getElementById('btn-standard');
-        if (btn) {
-          if (btn.dataset.loading === '1') return;
-          btn.dataset.loading = '1';
-          btn.disabled = true;
-          btn.style.cursor = 'not-allowed';
-          btn.innerHTML = '⏳ Processing...';
-        }
-        
-        const [yyyy, mm, dd] = stateDate.split('-').map(Number);
-        const reqStart = new Date(yyyy, mm - 1, dd, stateStartHr, 0, 0).toISOString();
-        const reqEnd = new Date(yyyy, mm - 1, dd, stateEndHr, 0, 0).toISOString();
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-        showLoading();
-        try {
-          const res = await api.requestBorrow({
-            itemId: item.id,
-            requestedStartTime: reqStart,
-            requestedEndTime: reqEnd
-          }, { signal: controller.signal });
-          
-          clearTimeout(timeoutId);
-          hideLoading();
-          
-          if (btn) {
-            btn.innerHTML = '✅ Request sent — Redirecting...';
-            btn.style.background = '#10b981';
-          }
-
+      $interactiveUI?.querySelectorAll('.date-pill').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          stateDate = e.target.dataset.val;
+          stateStartHr = null;
+          stateEndHr = null;
+          updateUI();
           setTimeout(() => {
-            window.location.hash = `#/checkout/${res.id}`;
-          }, 800);
-        } catch (err) {
-          clearTimeout(timeoutId);
-          hideLoading();
-          if (btn) {
-            btn.disabled = false;
-            btn.style.cursor = 'pointer';
-            btn.textContent = '⚡ Rent now';
-            btn.style.background = '#16a34a';
-          }
-          if (err.name === 'AbortError') {
-            showError('Network slow. Please try again.');
-          } else {
-            showError(err.message || 'Something went wrong. Try again.');
-          }
-        } finally {
-          if (btn) btn.dataset.loading = '0';
+            const selectedElement = $interactiveUI.querySelector('.date-pill[data-val="' + stateDate + '"]');
+            if (selectedElement) selectedElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+          }, 10);
+        });
+      });
+      $interactiveUI?.querySelectorAll('.start-pill').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          stateStartHr = parseInt(e.target.dataset.val, 10);
+          stateEndHr = stateStartHr + 1;
+          if (stateEndHr > 22) stateEndHr = 22;
+          updateUI();
+        });
+      });
+      $interactiveUI?.querySelectorAll('.end-pill').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          stateEndHr = parseInt(e.target.dataset.val, 10);
+          updateUI();
+        });
+      });
+    }
+
+    updateUI();
+
+    listen($bookingForm, 'submit', async (e) => {
+      e.preventDefault();
+      if (!requireAuth()) return;
+
+      const btn = document.getElementById('btn-standard');
+      if (btn) {
+        if (btn.dataset.loading === '1') return;
+        btn.dataset.loading = '1';
+        btn.disabled = true;
+        btn.style.cursor = 'not-allowed';
+        btn.innerHTML = '⏳ Processing...';
+      }
+
+      const [yyyy, mm, dd] = stateDate.split('-').map(Number);
+      const reqStart = new Date(yyyy, mm - 1, dd, stateStartHr, 0, 0).toISOString();
+      const reqEnd = new Date(yyyy, mm - 1, dd, stateEndHr, 0, 0).toISOString();
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      showLoading();
+      try {
+        const res = await api.requestBorrow({
+          itemId: item.id,
+          requestedStartTime: reqStart,
+          requestedEndTime: reqEnd
+        }, { signal: controller.signal });
+
+        clearTimeout(timeoutId);
+        hideLoading();
+
+        if (btn) {
+          btn.innerHTML = '✅ Request sent — Redirecting...';
+          btn.style.background = '#10b981';
         }
-      }, signal);
+
+        setTimeout(() => {
+          window.location.hash = `#/checkout/${res.id}`;
+        }, 800);
+      } catch (err) {
+        clearTimeout(timeoutId);
+        hideLoading();
+        if (btn) {
+          btn.disabled = false;
+          btn.style.cursor = 'pointer';
+          btn.textContent = '⚡ Rent now';
+          btn.style.background = '#16a34a';
+        }
+        if (err.name === 'AbortError') {
+          showError('Network slow. Please try again.');
+        } else {
+          showError(err.message || 'Something went wrong. Try again.');
+        }
+      } finally {
+        if (btn) btn.dataset.loading = '0';
+      }
+    }, signal);
   }
 }
 
@@ -1319,7 +1319,7 @@ function renderAuth() {
         try {
           const res = await api.signup({ name, email, college, password });
           hideLoading();
-          
+
           if (res.requiresVerification === false || res.message?.toLowerCase().includes('successfully')) {
             // Beta bypass: user is already verified and cookies are set
             await checkAuth(); // Refresh global user state
@@ -1763,7 +1763,7 @@ function renderListItem() {
   listen($fileInput, 'change', async () => {
     const files = Array.from($fileInput.files).slice(0, 2);
     $preview.innerHTML = '';
-    
+
     if ($fileInput.files.length > 2) {
       showError('Only the first 2 images will be uploaded');
     }
@@ -1785,10 +1785,10 @@ function renderListItem() {
             canvas.width = w; canvas.height = h;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, w, h);
-            
+
             // WebP 0.6 for extreme efficiency
             const dataUrl = canvas.toDataURL('image/webp', 0.6);
-            
+
             // Size Guard: Reject if > 300KB (Base64 is ~1.33x original, so ~400k chars)
             if (dataUrl.length > 400000) {
               throw new Error(`Image "${file.name}" is too large even after compression. Try a smaller photo.`);
@@ -1797,7 +1797,7 @@ function renderListItem() {
             // Cleanup
             img.src = '';
             canvas.width = 0; canvas.height = 0;
-            
+
             resolve(dataUrl);
           } catch (err) {
             reject(err);
@@ -1983,14 +1983,14 @@ async function renderChatList() {
     $container.innerHTML = `
       <div class="chat-list">
         ${conversations.map(tx => {
-          const item = tx.item || {};
-          const otherName = tx._role === 'renter'
-            ? (item.owner?.name || tx.lender?.name || 'Lender')
-            : (tx.renter?.name || 'Renter');
-          const initial = (otherName.charAt(0) || '?').toUpperCase();
-          const timeAgo = formatTimeAgo(tx.updatedAt || tx.createdAt);
+      const item = tx.item || {};
+      const otherName = tx._role === 'renter'
+        ? (item.owner?.name || tx.lender?.name || 'Lender')
+        : (tx.renter?.name || 'Renter');
+      const initial = (otherName.charAt(0) || '?').toUpperCase();
+      const timeAgo = formatTimeAgo(tx.updatedAt || tx.createdAt);
 
-          return `
+      return `
             <div class="chat-list-item" data-txid="${tx.id}">
               <div class="chat-list-avatar">${initial}</div>
               <div class="chat-list-content">
@@ -2002,7 +2002,7 @@ async function renderChatList() {
               </div>
             </div>
           `;
-        }).join('')}
+    }).join('')}
       </div>
     `;
 
@@ -2089,7 +2089,7 @@ async function renderCheckout(transactionId) {
     const lender = tx.lender || {};
     const lastSeen = lender.lastSeenAt ? new Date(lender.lastSeenAt) : null;
     const isRecent = lastSeen && (new Date() - lastSeen < 10 * 60 * 1000);
-    const activityHtml = isRecent 
+    const activityHtml = isRecent
       ? `<div style="color:#16a34a; font-size:0.85rem; font-weight:600; display:flex; align-items:center; gap:6px; margin-bottom:20px; background:#f0fdf4; padding:8px 12px; border-radius:8px; width:fit-content;">
            <span style="height:8px; width:8px; background:#16a34a; border-radius:50%; display:inline-block; animation: pulse 1s infinite alternate;"></span>
            🟢 Active recently
@@ -2164,7 +2164,7 @@ async function renderCheckout(transactionId) {
 
     function updateTimer() {
       const remainingMs = new Date(tx.expiresAt) - Date.now();
-      
+
       if (remainingMs <= 0) {
         $btnPay.disabled = false;
         $btnPay.style.opacity = '1';
@@ -2194,22 +2194,22 @@ async function renderCheckout(transactionId) {
       const mins = Math.floor(remainingMs / 60000);
       const secs = Math.floor((remainingMs % 60000) / 1000);
       const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-      
+
       // Update timer display with color logic
       if ($timerDisplay) {
         $timerDisplay.textContent = timeStr;
         const urgencyBox = document.getElementById('checkout-urgency');
         if (remainingMs < 10000) {
-            $timerDisplay.style.color = '#ef4444'; // red
-            if (urgencyBox) urgencyBox.style.borderColor = '#fecaca';
+          $timerDisplay.style.color = '#ef4444'; // red
+          if (urgencyBox) urgencyBox.style.borderColor = '#fecaca';
         } else if (remainingMs < 60000) {
-            $timerDisplay.style.color = '#f59e0b'; // amber
-            if (urgencyBox) urgencyBox.style.borderColor = '#fde68a';
+          $timerDisplay.style.color = '#f59e0b'; // amber
+          if (urgencyBox) urgencyBox.style.borderColor = '#fde68a';
         } else {
-            $timerDisplay.style.color = 'inherit';
+          $timerDisplay.style.color = 'inherit';
         }
       }
-      
+
       // Update button with inline timer
       if (!$btnPay.disabled && !$btnPay.innerHTML.includes('Processing')) {
         $btnPay.innerHTML = `💳 Confirm & Pay (${timeStr})`;
@@ -2218,7 +2218,7 @@ async function renderCheckout(transactionId) {
 
     const timerInterval = setInterval(updateTimer, 1000);
     updateTimer();
-    
+
     // Recovery Logic: Handle mobile suspension / background tabs
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -2285,21 +2285,21 @@ async function renderCheckout(transactionId) {
     }
 
     listen($btnPay, 'click', async () => {
-        if ($btnPay.innerHTML.includes('Rebook')) return; // handled by onclick
-        if ($btnPay.dataset.loading === '1') return; // double-click guard
-        $btnPay.dataset.loading = '1';
-        try {
-            $btnPay.disabled = true;
-            $btnPay.innerHTML = '⏳ Processing...';
-            await api.processPayment(tx.id);
-            showToast('Payment Successful! 🎉', 'Your rental is now active. You can chat with the lender.', 'success');
-            window.location.hash = `#/chat/${tx.id}`;
-        } catch (e) {
-            $btnPay.dataset.loading = '0';
-            $btnPay.disabled = false;
-            updateTimer(); // Restore timer state
-            showError(e.message || 'Payment failed. Please try again or rebook.');
-        }
+      if ($btnPay.innerHTML.includes('Rebook')) return; // handled by onclick
+      if ($btnPay.dataset.loading === '1') return; // double-click guard
+      $btnPay.dataset.loading = '1';
+      try {
+        $btnPay.disabled = true;
+        $btnPay.innerHTML = '⏳ Processing...';
+        await api.processPayment(tx.id);
+        showToast('Payment Successful! 🎉', 'Your rental is now active. You can chat with the lender.', 'success');
+        window.location.hash = `#/chat/${tx.id}`;
+      } catch (e) {
+        $btnPay.dataset.loading = '0';
+        $btnPay.disabled = false;
+        updateTimer(); // Restore timer state
+        showError(e.message || 'Payment failed. Please try again or rebook.');
+      }
     }, signal);
 
   } catch (err) {
