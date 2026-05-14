@@ -80,6 +80,11 @@ const $navToggle = document.getElementById('nav-toggle');
 const $errorBanner = document.getElementById('error-banner');
 const $spinner = document.getElementById('spinner');
 
+// Create mobile nav backdrop
+const $navBackdrop = document.createElement('div');
+$navBackdrop.className = 'nav-backdrop';
+document.body.appendChild($navBackdrop);
+
 // ─── Helpers ─────────────────────────────────────────────────
 
 /** Show global loading spinner */
@@ -361,17 +366,40 @@ function renderNav() {
   }
 }
 
+// Centralized Mobile Nav Cleanup
+function closeMobileMenu() {
+  $navLinks.classList.remove('open');
+  document.body.classList.remove('nav-open');
+}
+
 // Mobile nav toggle
-$navToggle.addEventListener('click', () => {
+$navToggle.addEventListener('click', (e) => {
+  e.stopPropagation();
   const isOpen = $navLinks.classList.toggle('open');
   document.body.classList.toggle('nav-open', isOpen);
 });
 
-// Close mobile nav on link click
+// Close mobile nav on backdrop click
+$navBackdrop.addEventListener('click', closeMobileMenu);
+
+// Close mobile nav on link click (using closest for icon support)
 $navLinks.addEventListener('click', (e) => {
-  if (e.target.tagName === 'A') {
-    $navLinks.classList.remove('open');
+  if (e.target.closest('a')) {
+    closeMobileMenu();
   }
+});
+
+// Close on scroll (if open)
+window.addEventListener('scroll', () => {
+  if (document.body.classList.contains('nav-open')) {
+    // Only close if scrolled more than a tiny bit to avoid jitter issues
+    closeMobileMenu();
+  }
+}, { passive: true });
+
+// Close on Escape key
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeMobileMenu();
 });
 
 // ─── Router ──────────────────────────────────────────────────
@@ -385,8 +413,7 @@ function router() {
   const param = rest.join('/');
 
   // Close mobile nav on any navigation
-  $navLinks.classList.remove('open');
-  document.body.classList.remove('nav-open'); // Remove scroll lock if present
+  closeMobileMenu();
 
   renderNav();
 
