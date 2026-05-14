@@ -7,7 +7,6 @@
 import { api, BACKEND_URL } from './api.js';
 
 // ─── State ───────────────────────────────────────────────────
-const isExamMode = true; // Added for Exam Mode
 const ENABLE_EXAM_PASS = false; // 🚩 Feature flag — set true to show Exam Pass option in UI
 
 const state = {
@@ -838,7 +837,6 @@ async function renderItemDetail(id) {
 
   const hasHourly = item.pricePerHour != null;
   const hasDaily = item.pricePerDay != null;
-  const isExamItem = item.title.toLowerCase().includes('calculator');
 
   $app.innerHTML = `
     <div class="page">
@@ -875,38 +873,6 @@ async function renderItemDetail(id) {
           </details>
 
           <div style="margin-top:32px; padding-top:24px; border-top:1px solid var(--color-border); text-align:center;">
-             ${isExamItem ? `
-               <!-- EXAM MODE CTA (Quick Shortcut) -->
-               <div style="margin-bottom:28px; padding:20px; border:2px solid var(--color-warning); border-radius:20px; background:rgba(230, 126, 34, 0.03);">
-                 <div style="font-size:1.1rem; font-weight:700; color:var(--color-warning); letter-spacing:0.03em; margin-bottom:10px;">⚡ Exams ongoing</div>
-                 <h2 style="font-size:1.75rem; font-weight:800; line-height:1.2; margin:0; margin-bottom:16px;">Need a calculator<br>RIGHT NOW?</h2>
-                 
-                 ${item.isAvailable ? `
-                   <div id="turnover-warning-container" style="min-height:48px; transition:min-height 0.2s ease; overflow:hidden;"></div>
-                   <button
-                     id="btn-quick"
-                     style="
-                       display:block; width:100%; min-height:60px;
-                       background:#16a34a; color:#fff;
-                       font-size:1.2rem; font-weight:700;
-                       border:none; border-radius:14px;
-                       padding:18px 24px; cursor:pointer;
-                       box-shadow:0 4px 18px rgba(22,163,74,0.35);
-                       transition:transform 0.1s, box-shadow 0.1s;
-                     "
-                   >⚡ Get a calculator now</button>
-                   <div style="margin-top:12px; font-size:0.85rem; font-weight:500; color:var(--color-text-muted);">Confirm and pickup in minutes</div>
-                 ` : `
-                   <div style="padding:20px; color:var(--color-text-muted);">Currently in use</div>
-                 `}
-               </div>
-               
-               <div style="margin: 24px 0; display: flex; align-items: center; gap: 12px; color: var(--color-text-muted);">
-                 <div style="flex:1; height:1px; background:var(--color-border);"></div>
-                 <span style="font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Or book for later</span>
-                 <div style="flex:1; height:1px; background:var(--color-border);"></div>
-               </div>
-             ` : ''}
 
              <!-- STANDARD BOOKING CTA -->
              ${item.isAvailable ? `
@@ -943,79 +909,6 @@ async function renderItemDetail(id) {
     ${footerHtml()}
   `;
 
-  if (state.user && item.isAvailable && isExamItem) {
-    api.checkTurnover({ itemId: item.id, rentalType: 'QUICK' })
-      .then(res => {
-        const container = document.getElementById('turnover-warning-container');
-        if (res.warning && res.warning.showUIBox) {
-          if (container) {
-            container.innerHTML = `<div style="color:${res.warning.color}; padding:10px 14px; border:1px solid ${res.warning.border}; background:${res.warning.bg}; border-radius:10px; margin-bottom:12px; font-weight:500; text-align:left; font-size:0.85rem; line-height:1.4;">${escapeHtml(res.warning.message)}</div>`;
-          }
-        }
-      }).catch(() => {});
-  }
-  const handlePresetReq = async (type) => {
-    if (!requireAuth()) return;
-    const btn = type === 'QUICK'
-      ? document.getElementById('btn-quick')
-      : document.getElementById('btn-exam');
-
-    if (btn) { 
-      if (btn.dataset.loading === '1') return;
-      btn.dataset.loading = '1';
-      btn.disabled = true; 
-      btn.style.cursor = 'not-allowed';
-      btn.innerHTML = '⏳ Sending request...'; 
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    showLoading();
-    try {
-      await api.requestBorrow({ itemId: item.id, rentalType: type }, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      hideLoading();
-      
-      // ✅ Add a tiny moment of success feedback
-      if (btn) {
-        btn.innerHTML = '✅ Request sent — waiting for confirmation';
-        btn.style.background = '#10b981'; // Softer green so CTA remains dominant
-      }
-
-      // Briefly pause before proceeding to the next step
-      setTimeout(() => {
-        $app.innerHTML = `
-          <div class="page empty-state">
-            <p>✓ Request sent! The lender will review it shortly.</p>
-            <a href="#/rentals" class="btn btn-secondary" style="margin-top:12px;">View My Rentals</a>
-          </div>
-        `;
-      }, 1000);
-
-    } catch (err) {
-      clearTimeout(timeoutId);
-      hideLoading();
-      // ✅ Restore original CTA state on failure so they can try again
-      if (btn) { 
-          btn.disabled = false; 
-          btn.style.cursor = 'pointer';
-          btn.textContent = type === 'QUICK' ? '⚡ Get a calculator now' : '📚 Exam Pass — ₹150'; 
-      }
-
-      if (err.name === 'AbortError') {
-          showError('Network slow. Please try again.');
-      } else {
-          showError(err.message || 'Something went wrong. Try again.');
-      }
-    } finally {
-      if (btn) btn.dataset.loading = '0';
-    }
-  };
-
-  if (isExamItem && document.getElementById('btn-quick')) {
-    listen(document.getElementById('btn-quick'), 'click', () => handlePresetReq('QUICK'), signal);
-  }
 
   const $bookingForm = document.getElementById('booking-form');
   if ($bookingForm) {
