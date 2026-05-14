@@ -5,6 +5,7 @@ import {
     ForbiddenException,
     ConflictException,
     Logger,
+    OnModuleInit,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
@@ -27,17 +28,23 @@ export const GRACE_JOB = 'start-grace';
 export const LATE_JOB = 'mark-late';
 
 @Injectable()
-export class BorrowService {
+export class BorrowService implements OnModuleInit {
     private readonly logger = new Logger(BorrowService.name);
 
     constructor(
         private prisma: PrismaService,
-        private readonly configService: ConfigService,
-        private readonly emailService: EmailService,
+        private configService: ConfigService,
+        private emailService: EmailService,
         private chatGateway: ChatGateway, // Injected ChatGateway
         // @InjectQueue(TIMER_QUEUE) private readonly timerQueue: Queue,
     ) { }
-
+    
+    onModuleInit() {
+        // Start background sweeper for stale reservations every 5 minutes
+        setInterval(() => {
+            this.releaseStaleHolds().catch(err => this.logger.error('Hold sweeper failed', err));
+        }, 5 * 60 * 1000);
+    }
     private validateTransition(current: string, next: string) {
         const allowedTransitions: Record<string, string[]> = {
             REQUESTED: ["ACCEPTED", "REJECTED", "CANCELLED"],
@@ -1083,17 +1090,26 @@ export class BorrowService {
         for (const tx of stale) {
             try {
                 await this.prisma.$transaction(async (prisma) => {
-                    const wallet = await prisma.wallet.findUnique({ where: { userId: tx.renterId } });
-                    if (wallet && wallet.holdBalance >= tx.totalPaid) {
+                    // Lock the transaction row to prevent race with processPayment
+                    const [latestTx] = await prisma.$queryRaw<any[]>`
+                        SELECT status, "totalPaid", "renterId" FROM "borrow_transactions" WHERE id = ${tx.id} FOR UPDATE
+                    `;
+                    
+                    if (!latestTx || latestTx.status !== TransactionStatus.PAYMENT_PENDING) {
+                        return; // Already processed or changed state
+                    }
+
+                    const wallet = await prisma.wallet.findUnique({ where: { userId: latestTx.renterId } });
+                    if (wallet && wallet.holdBalance >= latestTx.totalPaid) {
                         await prisma.wallet.update({
                             where: { id: wallet.id },
-                            data: { holdBalance: { decrement: tx.totalPaid } }
+                            data: { holdBalance: { decrement: latestTx.totalPaid } }
                         });
                         await prisma.walletTransaction.create({
                             data: {
                                 walletId: wallet.id,
                                 type: 'RELEASE',
-                                amount: tx.totalPaid,
+                                amount: latestTx.totalPaid,
                                 balanceAfter: wallet.balance,
                                 description: `Hold released - Expiry sweeper: ${tx.id}`,
                                 borrowTxId: tx.id

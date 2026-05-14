@@ -95,12 +95,45 @@ function hideLoading() {
   document.body.style.pointerEvents = '';
 }
 
-/** Show error banner that auto-hides after 5 seconds */
+/** Show error banner that auto-hides after 6 seconds. Replaces existing content if already visible. */
 function showError(msg) {
-  $errorBanner.textContent = msg;
+  // Update content immediately
+  $errorBanner.innerHTML = `<span style="flex:1">${msg}</span><button style="margin-left:12px;color:rgba(255,255,255,0.8);font-weight:bold;padding:4px 8px;border-radius:50%;" onclick="this.parentElement.classList.remove('visible')" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.8)'">✕</button>`;
+  
+  if ($errorBanner.classList.contains('visible')) {
+    // Subtle "pulse" animation if already visible to signal new error
+    $errorBanner.animate([
+      { transform: 'translateX(-50%) scale(1)' },
+      { transform: 'translateX(-50%) scale(1.03)' },
+      { transform: 'translateX(-50%) scale(1)' }
+    ], { duration: 200 });
+  }
+
   $errorBanner.classList.add('visible');
-  setTimeout(() => $errorBanner.classList.remove('visible'), 5000);
+  
+  // Clear any existing timeout to reset the countdown
+  if ($errorBanner._timeout) clearTimeout($errorBanner._timeout);
+  $errorBanner._timeout = setTimeout(() => {
+    $errorBanner.classList.remove('visible');
+    $errorBanner._timeout = null;
+  }, 6000);
 }
+
+// ─── Auto-hide Navbar on Scroll ──────────────────────────────
+let lastScrollY = window.scrollY;
+const $navbar = document.querySelector('.navbar');
+
+window.addEventListener('scroll', () => {
+  if (document.body.classList.contains('nav-open')) return; // Don't hide if mobile menu is open
+  
+  const currentScrollY = window.scrollY;
+  if (currentScrollY > lastScrollY && currentScrollY > 100) {
+    $navbar.classList.add('navbar-hidden');
+  } else {
+    $navbar.classList.remove('navbar-hidden');
+  }
+  lastScrollY = currentScrollY;
+}, { passive: true });
 
 /** Navigate to a hash route */
 function navigate(hash) {
@@ -331,7 +364,8 @@ function renderNav() {
 
 // Mobile nav toggle
 $navToggle.addEventListener('click', () => {
-  $navLinks.classList.toggle('open');
+  const isOpen = $navLinks.classList.toggle('open');
+  document.body.classList.toggle('nav-open', isOpen);
 });
 
 // Close mobile nav on link click
@@ -350,6 +384,10 @@ function router() {
   const hashPath = hash.split('?')[0]; // strip query params before routing
   const [path, ...rest] = hashPath.slice(2).split('/');
   const param = rest.join('/');
+
+  // Close mobile nav on any navigation
+  $navLinks.classList.remove('open');
+  document.body.classList.remove('nav-open'); // Remove scroll lock if present
 
   renderNav();
 
@@ -2160,8 +2198,15 @@ async function renderCheckout(transactionId) {
     let tx;
     try {
       tx = await api.initiateCheckout(transactionId);
-    } catch {
-      window.location.hash = '#/rentals';
+    } catch (err) {
+      console.error('Checkout initiation failed:', err);
+      // Recovery Flow: If stale/not initiated, redirect with a clear message
+      if (err.message?.includes('Checkout not initiated') || err.message?.includes('expired')) {
+        showError('Payment session expired or invalid. Please try again.');
+      } else {
+        showError(err.message || 'Failed to initiate checkout');
+      }
+      navigate('#/rentals');
       return;
     }
 
@@ -2307,7 +2352,19 @@ async function renderCheckout(transactionId) {
 
     const timerInterval = setInterval(updateTimer, 1000);
     updateTimer();
-    signal.addEventListener('abort', () => clearInterval(timerInterval));
+    
+    // Recovery Logic: Handle mobile suspension / background tabs
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        updateTimer(); // Force resync immediately on resume
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    signal.addEventListener('abort', () => {
+      clearInterval(timerInterval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    });
 
     // ── Status poll: detect external state changes (expiry worker, lender cancel) ──
     const statusPoll = setInterval(async () => {
