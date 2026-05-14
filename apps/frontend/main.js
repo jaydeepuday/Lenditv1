@@ -852,7 +852,7 @@ async function renderItemDetail(id) {
           <div class="item-owner">Listed by ${escapeHtml(item.owner?.name || 'Unknown')} · ${escapeHtml(item.category || '')}</div>
           <div class="item-desc">${escapeHtml(item.description || '')}</div>
 
-          <!-- NEW: Upfront information to reduce chat spam (Collapsible) -->
+          <!-- Collapsible Lender Info -->
           <details style="margin-top:24px; padding:6px; background:var(--color-surface); border-radius:14px; border:1px solid var(--color-border); cursor:pointer;">
             <summary style="font-weight:800; padding:12px; color:var(--color-primary); font-size:1.05rem; list-style:none; display:flex; align-items:center; justify-content:space-between;">
                <span>📋 Lender Quick Info</span>
@@ -874,72 +874,65 @@ async function renderItemDetail(id) {
             </div>
           </details>
 
-          <!-- CTA section BELOW item details -->
           <div style="margin-top:32px; padding-top:24px; border-top:1px solid var(--color-border); text-align:center;">
              ${isExamItem ? `
-               <!-- EXAM MODE CTA -->
-               <div style="margin-bottom:28px;">
+               <!-- EXAM MODE CTA (Quick Shortcut) -->
+               <div style="margin-bottom:28px; padding:20px; border:2px solid var(--color-warning); border-radius:20px; background:rgba(230, 126, 34, 0.03);">
                  <div style="font-size:1.1rem; font-weight:700; color:var(--color-warning); letter-spacing:0.03em; margin-bottom:10px;">⚡ Exams ongoing</div>
-                 <h2 style="font-size:1.75rem; font-weight:800; line-height:1.2; margin:0;">Need a calculator<br>RIGHT NOW?</h2>
+                 <h2 style="font-size:1.75rem; font-weight:800; line-height:1.2; margin:0; margin-bottom:16px;">Need a calculator<br>RIGHT NOW?</h2>
+                 
+                 ${item.isAvailable ? `
+                   <div id="turnover-warning-container" style="min-height:48px; transition:min-height 0.2s ease; overflow:hidden;"></div>
+                   <button
+                     id="btn-quick"
+                     style="
+                       display:block; width:100%; min-height:60px;
+                       background:#16a34a; color:#fff;
+                       font-size:1.2rem; font-weight:700;
+                       border:none; border-radius:14px;
+                       padding:18px 24px; cursor:pointer;
+                       box-shadow:0 4px 18px rgba(22,163,74,0.35);
+                       transition:transform 0.1s, box-shadow 0.1s;
+                     "
+                   >⚡ Get a calculator now</button>
+                   <div style="margin-top:12px; font-size:0.85rem; font-weight:500; color:var(--color-text-muted);">Confirm and pickup in minutes</div>
+                 ` : `
+                   <div style="padding:20px; color:var(--color-text-muted);">Currently in use</div>
+                 `}
                </div>
                
-               ${item.isAvailable ? `
-                 <div id="turnover-warning-container" style="min-height:48px; transition:min-height 0.2s ease; overflow:hidden;"></div>
-                 <div style="font-size:0.85rem; font-weight:500; color:var(--color-primary); margin-bottom:12px;">✔ Most bookings confirmed within minutes</div>
-                 <button
-                   id="btn-quick"
-                   style="
-                     display:block; width:100%; min-height:60px;
-                     background:#16a34a; color:#fff;
-                     font-size:1.2rem; font-weight:700;
-                     border:none; border-radius:14px;
-                     padding:18px 24px; cursor:pointer;
-                     box-shadow:0 4px 18px rgba(22,163,74,0.35);
-                     transition:transform 0.1s, box-shadow 0.1s;
-                   "
-                   onmousedown="this.style.transform='scale(0.97)'"
-                   onmouseup="this.style.transform='scale(1)'"
-                 >⚡ Get a calculator now</button>
-   
-                 <!-- Trust signals -->
-                 <div style="margin-top:20px; display:flex; flex-direction:column; gap:10px; color:var(--color-text-muted); font-size:0.95rem;">
-                   <span>Booking available</span>
-                   <span>✔ Pickup after confirmation</span>
+               <div style="margin: 24px 0; display: flex; align-items: center; gap: 12px; color: var(--color-text-muted);">
+                 <div style="flex:1; height:1px; background:var(--color-border);"></div>
+                 <span style="font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Or book for later</span>
+                 <div style="flex:1; height:1px; background:var(--color-border);"></div>
+               </div>
+             ` : ''}
+
+             <!-- STANDARD BOOKING CTA -->
+             ${item.isAvailable ? `
+               <form id="booking-form" style="display:flex; flex-direction:column; gap:20px; text-align:left; background:var(--color-surface); padding:24px; border-radius:16px;">
+                 <div style="font-size:1.3rem; font-weight:800; color:var(--color-text-main);">📦 Book this item</div>
+                 
+                 <div style="font-size:1.1rem; font-weight:600; color:var(--color-primary); background:rgba(22, 163, 74, 0.1); padding:10px 14px; border-radius:10px; display:inline-block; text-align:center;">
+                     💰 ₹${item.pricePerHour || item.pricePerDay}${item.pricePerHour ? '/hour' : '/day'}
+                 </div>
+                 
+                 <div id="booking-interactive-ui"></div>
+
+                 <button type="submit" id="btn-standard" class="btn btn-primary" disabled style="margin-top:8px; min-height:60px; font-weight:800; font-size:1.2rem; background:#16a34a; border-radius:14px; box-shadow:0 4px 18px rgba(22,163,74,0.35); opacity:0.5;">Select time to continue</button>
+
+                 <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px; color:var(--color-text-muted); font-size:0.9rem; text-align:center;">
+                   <span>✔ Booking confirmed after approval</span>
                    <span>✔ Takes less than 2 minutes</span>
                  </div>
-               ` : `
-                 <div style="padding:24px; background:var(--color-surface); border-radius:12px; color:var(--color-text-muted);">
-                   😔 This item is currently unavailable. <a href="#/browse" style="color:var(--color-primary);">Browse others →</a>
-                 </div>
-               `}
+               </form>
              ` : `
-               <!-- STANDARD BOOKING CTA -->
-               ${item.isAvailable ? `
-                 <form id="booking-form" style="display:flex; flex-direction:column; gap:20px; text-align:left; background:var(--color-surface); padding:24px; border-radius:16px;">
-                   <div style="font-size:1.3rem; font-weight:800; color:var(--color-text-main);">📦 Book this item</div>
-                   
-                   <div style="font-size:1.1rem; font-weight:600; color:var(--color-primary); background:rgba(22, 163, 74, 0.1); padding:10px 14px; border-radius:10px; display:inline-block; text-align:center;">
-                       💰 ₹${item.pricePerHour || item.pricePerDay}${item.pricePerHour ? '/hour' : '/day'}
-                   </div>
-                   
-                   <div id="booking-interactive-ui"></div>
-  
-                   <button type="submit" id="btn-standard" class="btn btn-primary" disabled style="margin-top:8px; min-height:60px; font-weight:800; font-size:1.2rem; background:#16a34a; border-radius:14px; box-shadow:0 4px 18px rgba(22,163,74,0.35); opacity:0.5;">Select time to continue</button>
-
-                   <!-- Trust signals -->
-                   <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px; color:var(--color-text-muted); font-size:0.9rem; text-align:center;">
-                     <span>✔ Booking confirmed after approval</span>
-                     <span>✔ Takes less than 2 minutes</span>
-                   </div>
-                 </form>
-               ` : `
-                 <div style="padding:24px; background:var(--color-surface); border-radius:12px; color:var(--color-text-muted);">
-                   😔 This item is currently unavailable. <a href="#/browse" style="color:var(--color-primary);">Browse others →</a>
-                 </div>
-               `}
+               <div style="padding:24px; background:var(--color-surface); border-radius:12px; color:var(--color-text-muted);">
+                 😔 This item is currently unavailable. <a href="#/browse" style="color:var(--color-primary);">Browse others →</a>
+               </div>
              `}
 
-             <!-- Report link (subtle) -->
+             <!-- Report link -->
              <div style="margin-top:32px;">
                <button style="background:none; border:none; font-size:0.8rem; color:var(--color-text-muted); cursor:pointer; text-decoration:underline;" onclick="reportItem('${item.id}')">Report this item</button>
              </div>
@@ -958,29 +951,9 @@ async function renderItemDetail(id) {
           if (container) {
             container.innerHTML = `<div style="color:${res.warning.color}; padding:10px 14px; border:1px solid ${res.warning.border}; background:${res.warning.bg}; border-radius:10px; margin-bottom:12px; font-weight:500; text-align:left; font-size:0.85rem; line-height:1.4;">${escapeHtml(res.warning.message)}</div>`;
           }
-        } else {
-          if (container) {
-            container.style.minHeight = '0';
-          }
-          if (res.warning && !res.warning.showUIBox) {
-            const ctaBtn = document.getElementById('btn-quick');
-            if (ctaBtn && ctaBtn.parentNode) {
-              const note = document.createElement('div');
-              note.style = "font-size:0.8rem; color:var(--color-warning); text-align:center; margin-top:8px; font-weight:500;";
-              note.textContent = "⚠️ " + res.warning.shortText;
-              ctaBtn.parentNode.insertBefore(note, ctaBtn.nextSibling);
-            }
-          }
         }
-      })
-      .catch(err => {
-         console.error('Turnover check failed:', err);
-         const container = document.getElementById('turnover-warning-container');
-         if (container) container.style.minHeight = '0';
-      });
+      }).catch(() => {});
   }
-
-  // ─── Exam Mode button handlers ───────────────────────────────
   const handlePresetReq = async (type) => {
     if (!requireAuth()) return;
     const btn = type === 'QUICK'
@@ -1040,11 +1013,12 @@ async function renderItemDetail(id) {
     }
   };
 
-  if (isExamItem) {
+  if (isExamItem && document.getElementById('btn-quick')) {
     listen(document.getElementById('btn-quick'), 'click', () => handlePresetReq('QUICK'), signal);
-  } else {
-    const $bookingForm = document.getElementById('booking-form');
-    if ($bookingForm) {
+  }
+
+  const $bookingForm = document.getElementById('booking-form');
+  if ($bookingForm) {
       const $interactiveUI = document.getElementById('booking-interactive-ui');
       const $btnStandard = document.getElementById('btn-standard');
       
