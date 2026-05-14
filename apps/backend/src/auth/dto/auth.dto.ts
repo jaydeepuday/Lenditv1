@@ -13,6 +13,10 @@ const BLOCKED_DOMAINS = [
     'ymail.com', 'zoho.com', 'gmx.com', 'mail.com',
 ];
 
+export const ALLOWED_UNIVERSITIES = [
+    { id: 'woxsen', name: 'Woxsen University' },
+];
+
 export function isStudentEmail(email: string): boolean {
     if (!email) return false;
     const domain = email.split('@')[1]?.toLowerCase();
@@ -46,6 +50,9 @@ export class SignupDto {
 
     @IsString()
     @IsNotEmpty()
+    @Matches(/^(Woxsen University)$/, {
+        message: 'Please select a valid university from the list',
+    })
     college!: string;
 }
 

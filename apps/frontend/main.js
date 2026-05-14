@@ -15,6 +15,10 @@ const state = {
   unreadChats: 0,     // Unread chat message count
 };
 
+const ALLOWED_UNIVERSITIES = [
+  { id: 'woxsen', name: 'Woxsen University' },
+];
+
 // ─── Status → Action Maps ────────────────────────────────────
 const RENTER_ACTIONS = {
   REQUESTED: [],
@@ -1261,7 +1265,10 @@ function renderAuth() {
             </div>
             <div class="form-group">
               <label for="signup-college">College</label>
-              <input type="text" class="form-input" id="signup-college" placeholder="Your college name" required />
+              <div style="position:relative;">
+                <input type="text" class="form-input" id="signup-college" placeholder="Type to search university..." autocomplete="off" required />
+                <div id="college-suggestions" class="autocomplete-suggestions"></div>
+              </div>
             </div>
             <div class="form-group">
               <label for="signup-password">Password</label>
@@ -1291,6 +1298,51 @@ function renderAuth() {
         render();
       }, signal);
     });
+
+    // University Autocomplete Logic
+    if (mode === 'signup') {
+      const $collegeInput = document.getElementById('signup-college');
+      const $suggestions = document.getElementById('college-suggestions');
+      let selectedUniversity = null;
+
+      listen($collegeInput, 'input', (e) => {
+        const val = e.target.value.toLowerCase().trim();
+        $suggestions.innerHTML = '';
+        
+        if (!val) {
+          $suggestions.classList.remove('visible');
+          return;
+        }
+
+        const matches = ALLOWED_UNIVERSITIES.filter(u => 
+          u.name.toLowerCase().includes(val)
+        );
+
+        if (matches.length > 0) {
+          matches.forEach(match => {
+            const div = document.createElement('div');
+            div.className = 'suggestion-item';
+            div.textContent = match.name;
+            listen(div, 'click', () => {
+              $collegeInput.value = match.name;
+              selectedUniversity = match.name;
+              $suggestions.classList.remove('visible');
+            }, signal);
+            $suggestions.appendChild(div);
+          });
+          $suggestions.classList.add('visible');
+        } else {
+          $suggestions.classList.remove('visible');
+        }
+      }, signal);
+
+      // Dismiss on click away
+      listen(document, 'click', (e) => {
+        if (e.target !== $collegeInput) {
+          $suggestions.classList.remove('visible');
+        }
+      }, signal);
+    }
 
     // Signup consent checkbox → enable/disable submit
     if (mode === 'signup') {
@@ -1340,6 +1392,11 @@ function renderAuth() {
         const name = document.getElementById('signup-name').value.trim();
         const email = document.getElementById('signup-email').value.trim();
         const college = document.getElementById('signup-college').value.trim();
+        const isValidCollege = ALLOWED_UNIVERSITIES.some(u => u.name === college);
+        if (!isValidCollege) {
+          showError('Please select a valid university from the suggestions');
+          return;
+        }
         const password = document.getElementById('signup-password').value;
 
         showLoading();
