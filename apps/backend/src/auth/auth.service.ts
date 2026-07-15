@@ -65,7 +65,7 @@ export class AuthService {
 
                 return { message: 'OTP sent. Please verify your email.' };
             }
-            throw new ConflictException('An account with this email already exists');
+            throw new ConflictException('Unable to create account. Please try again or login instead.');
         }
 
         // 3. Hash password
@@ -125,7 +125,6 @@ export class AuthService {
 
     async generateAndSendOtp(userId: string, email: string, name: string, prismaClient: any = this.prisma): Promise<void> {
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-        console.log('Generated OTP:', otpCode);
         const hash = await bcrypt.hash(otpCode, BCRYPT_ROUNDS);
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
@@ -149,7 +148,7 @@ export class AuthService {
             include: { otp: true },
         });
 
-        if (!user) throw new NotFoundException('No account found with this email');
+        if (!user) throw new BadRequestException('If an account exists, we have sent a verification code.');
         if (user.isVerified) return { message: 'Email already verified. Please login.' };
 
         const otpRecord = user.otp;
@@ -198,7 +197,10 @@ export class AuthService {
         email = email.toLowerCase().trim();
         const user = await this.prisma.user.findUnique({ where: { email } });
 
-        if (!user) throw new NotFoundException('No account found with this email');
+        if (!user) {
+            // Don't reveal whether account exists
+            return { message: 'If an account exists, a new OTP has been sent.' };
+        }
         if (user.isVerified) throw new BadRequestException('This account is already verified');
 
         try {

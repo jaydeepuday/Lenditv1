@@ -35,7 +35,7 @@ export class AuthController {
 
     @Public()
     @Post('signup')
-    @Throttle({ default: { limit: 5, ttl: 60000 } })
+    @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 signups per minute
     async signup(@Body() dto: SignupDto, @Res({ passthrough: true }) res: Response) {
         const result = await this.authService.signup(dto);
         if (result.tokens) {
@@ -48,7 +48,7 @@ export class AuthController {
     @Public()
     @Post('verify-otp')
     @HttpCode(HttpStatus.OK)
-    @Throttle({ default: { limit: 10, ttl: 60000 } })
+    @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 OTP attempts per minute
     async verifyOtp(
         @Body() dto: VerifyOtpDto,
         @Res({ passthrough: true }) res: Response,
@@ -71,7 +71,7 @@ export class AuthController {
     @Public()
     @Post('login')
     @HttpCode(HttpStatus.OK)
-    @Throttle({ default: { limit: 10, ttl: 60000 } })
+    @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 login attempts per minute
     async login(
         @Body() dto: LoginDto,
         @Res({ passthrough: true }) res: Response,
