@@ -4,9 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
-    "build": "nest build",
+    "build": "npx prisma generate && nest build",
     "start": "node dist/src/main.js",
-    "start:prod": "node dist/src/main.js"
+    "start:prod": "node dist/src/main.js",
+    "prisma:generate": "npx prisma generate",
+    "prisma:push": "npx prisma db push",
+    "prisma:reset": "npx prisma db push --force-reset",
+    "render-build": "npx prisma generate && npx prisma db push --force-reset && nest build"
   },
   "dependencies": {
     "@nestjs/bull": "^11.0.4",
