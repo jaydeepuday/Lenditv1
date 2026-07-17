@@ -227,6 +227,23 @@ function myLendings() {
     return apiFetch('/borrow/my/lending');
 }
 
+// ─── Chat ──────────────────────────────────────────────────
+
+/** Create or Get a chat for an item */
+function createChat(itemId) {
+    return apiFetch('/chat', { method: 'POST', body: { itemId } });
+}
+
+/** Get all chats for the current user */
+function myChats() {
+    return apiFetch('/chat/my');
+}
+
+/** Get detailed chat information (messages, trust signals, transaction) */
+function getChatDetails(id) {
+    return apiFetch(`/chat/${id}`);
+}
+
 // ─── Wallet ────────────────────────────────────────────────
 
 /** Get wallet balance */
@@ -308,6 +325,10 @@ export const api = {
     myRentals,
     myLendings,
     cancelBorrow,
+    // Chat
+    createChat,
+    myChats,
+    getChatDetails,
     // Wallet
     getWallet,
     depositWallet,

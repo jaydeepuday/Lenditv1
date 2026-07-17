@@ -14,7 +14,7 @@ import { RequestBorrowDto, AcceptBorrowDto } from './dto/borrow.dto';
 import { TransactionStatus, DurationType, RentalType, WalletTransactionType, BorrowTransaction, Wallet } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../auth/email.service';
-import { ChatGateway } from '../chat/chat.gateway'; 
+import { ChatGateway } from '../chat/chat.gateway';
 import { EXAM_CONFIG } from '../config/exam.config';
 
 const RENTER_FEE_RATE = 0.10; // 10%
@@ -38,7 +38,7 @@ export class BorrowService implements OnModuleInit {
         private chatGateway: ChatGateway, // Injected ChatGateway
         // @InjectQueue(TIMER_QUEUE) private readonly timerQueue: Queue,
     ) { }
-    
+
     onModuleInit() {
         // Start background sweeper for stale reservations every 5 minutes
         setInterval(() => {
@@ -77,22 +77,22 @@ export class BorrowService implements OnModuleInit {
             let presetReqEnd: Date | null = null;
 
             if (dto.rentalType === RentalType.QUICK) {
-                presetReqStart    = new Date();                                              // now
-                presetReqEnd      = new Date(Date.now() + EXAM_CONFIG.quickRentMaxHours * 60 * 60 * 1000);
-                presetFinalPrice  = EXAM_CONFIG.prices.QUICK;
+                presetReqStart = new Date();                                              // now
+                presetReqEnd = new Date(Date.now() + EXAM_CONFIG.quickRentMaxHours * 60 * 60 * 1000);
+                presetFinalPrice = EXAM_CONFIG.prices.QUICK;
                 presetPlatformFee = Math.ceil(presetFinalPrice * 0.1);
 
             } else if (dto.rentalType === RentalType.EXAM_PASS) {
                 // Exam dates are derived directly from config, not user input!
                 presetReqStart = new Date(EXAM_CONFIG.examStart);
-                presetReqEnd   = new Date(EXAM_CONFIG.examEnd);
+                presetReqEnd = new Date(EXAM_CONFIG.examEnd);
                 if (isNaN(presetReqStart.getTime()) || isNaN(presetReqEnd.getTime())) {
                     throw new BadRequestException('EXAM_PASS dates misconfigured on server');
                 }
                 if (presetReqStart >= presetReqEnd) {
                     throw new BadRequestException('Exam config end must be after start');
                 }
-                presetFinalPrice  = EXAM_CONFIG.prices.EXAM_PASS;
+                presetFinalPrice = EXAM_CONFIG.prices.EXAM_PASS;
                 presetPlatformFee = Math.ceil(presetFinalPrice * 0.1);
             }
 
@@ -100,7 +100,7 @@ export class BorrowService implements OnModuleInit {
             const isPresetMode = presetReqStart !== null;
 
             const reqStart = isPresetMode ? presetReqStart! : new Date(dto.requestedStartTime ?? '');
-            const reqEnd   = isPresetMode ? presetReqEnd!   : new Date(dto.requestedEndTime   ?? '');
+            const reqEnd = isPresetMode ? presetReqEnd! : new Date(dto.requestedEndTime ?? '');
 
             if (!isPresetMode) {
                 if (isNaN(reqStart.getTime()) || isNaN(reqEnd.getTime())) {
@@ -209,9 +209,9 @@ export class BorrowService implements OnModuleInit {
 
             if (previousBooking?.requestedEndTime) {
                 const gapBefore = reqStart.getTime() - previousBooking.requestedEndTime.getTime();
-                if (gapBefore < TURNOVER_BUFFER_MS) { 
+                if (gapBefore < TURNOVER_BUFFER_MS) {
                     isTightTurnover = true;
-                    tightSide = 'previous'; 
+                    tightSide = 'previous';
                     if (gapBefore < 10 * 60 * 1000) isVeryTight = true;
                     prevTimeStr = formatTime(previousBooking.requestedEndTime);
                 }
@@ -235,7 +235,7 @@ export class BorrowService implements OnModuleInit {
                 } else if (tightSide === 'next') {
                     color = '#c2410c'; bg = '#ffedd5'; border = '#fdba74'; // orange
                 }
-                
+
                 let message = '';
                 if (tightSide === 'previous') message = `⚠️ Previous booking ends at ${prevTimeStr} — pickup may be delayed`;
                 else if (tightSide === 'next') message = `⚠️ Next booking starts at ${nextTimeStr} — please return on time`;
@@ -258,18 +258,18 @@ export class BorrowService implements OnModuleInit {
                 //   renter pays: finalPrice + platformFee
                 //   lender gets: finalPrice  (no deduction)
                 //   platform:    platformFee only
-                const fp  = presetFinalPrice!;
-                const pf  = presetPlatformFee!;
+                const fp = presetFinalPrice!;
+                const pf = presetPlatformFee!;
 
-                rentAmount      = fp;
-                renterFee       = pf;
-                lenderFee       = 0;
-                totalPaid       = parseFloat((fp + pf).toFixed(2));
-                lenderPayout    = parseFloat(fp.toFixed(2));
-                platformEarned  = parseFloat(pf.toFixed(2));
+                rentAmount = fp;
+                renterFee = pf;
+                lenderFee = 0;
+                totalPaid = parseFloat((fp + pf).toFixed(2));
+                lenderPayout = parseFloat(fp.toFixed(2));
+                platformEarned = parseFloat(pf.toFixed(2));
 
-                const durationMs   = reqEnd.getTime() - reqStart.getTime();
-                const totalHours   = Math.ceil(durationMs / (1000 * 60 * 60));
+                const durationMs = reqEnd.getTime() - reqStart.getTime();
+                const totalHours = Math.ceil(durationMs / (1000 * 60 * 60));
                 activeDurationType = DurationType.HOURS;
                 activeDurationValue = totalHours;
 
@@ -293,14 +293,14 @@ export class BorrowService implements OnModuleInit {
                     throw new BadRequestException('Item has no pricing defined');
                 }
 
-                rentAmount      = baseRent;
-                renterFee       = parseFloat((baseRent * RENTER_FEE_RATE).toFixed(2));
-                lenderFee       = parseFloat((baseRent * LENDER_FEE_RATE).toFixed(2));
-                totalPaid       = parseFloat((baseRent + renterFee).toFixed(2));
-                lenderPayout    = parseFloat((baseRent - lenderFee).toFixed(2));
-                platformEarned  = parseFloat((renterFee + lenderFee).toFixed(2));
+                rentAmount = baseRent;
+                renterFee = parseFloat((baseRent * RENTER_FEE_RATE).toFixed(2));
+                lenderFee = parseFloat((baseRent * LENDER_FEE_RATE).toFixed(2));
+                totalPaid = parseFloat((baseRent + renterFee).toFixed(2));
+                lenderPayout = parseFloat((baseRent - lenderFee).toFixed(2));
+                platformEarned = parseFloat((renterFee + lenderFee).toFixed(2));
 
-                activeDurationType  = item.pricePerDay ? DurationType.DAYS : DurationType.HOURS;
+                activeDurationType = item.pricePerDay ? DurationType.DAYS : DurationType.HOURS;
                 activeDurationValue = Math.ceil(totalHours / (item.pricePerDay ? 24 : 1));
             }
 
@@ -310,15 +310,15 @@ export class BorrowService implements OnModuleInit {
                     renterId,
                     lenderId: item.ownerId,
                     // Preset fields (null for standard rentals)
-                    rentalType:  dto.rentalType ?? null,
-                    finalPrice:  isPresetMode ? presetFinalPrice  : null,
+                    rentalType: dto.rentalType ?? null,
+                    finalPrice: isPresetMode ? presetFinalPrice : null,
                     platformFee: isPresetMode ? presetPlatformFee : null,
                     // Duration
-                    durationType:  activeDurationType,
+                    durationType: activeDurationType,
                     durationValue: activeDurationValue,
                     // Times
                     requestedStartTime: reqStart,
-                    requestedEndTime:   reqEnd,
+                    requestedEndTime: reqEnd,
                     // Financials
                     rentAmount,
                     renterFee,
@@ -332,7 +332,7 @@ export class BorrowService implements OnModuleInit {
                     isTightTurnover,
                 },
                 include: {
-                    item:   { select: { id: true, title: true } },
+                    item: { select: { id: true, title: true } },
                     renter: { select: { id: true, name: true } },
                     lender: { select: { id: true, name: true } },
                 },
@@ -360,7 +360,7 @@ export class BorrowService implements OnModuleInit {
     async checkTurnover(dto: RequestBorrowDto) {
         let presetReqStart: Date | null = null;
         let presetReqEnd: Date | null = null;
-        
+
         if (dto.rentalType === RentalType.QUICK) {
             presetReqStart = new Date();
             presetReqEnd = new Date(Date.now() + EXAM_CONFIG.quickRentMaxHours * 60 * 60 * 1000);
@@ -368,10 +368,10 @@ export class BorrowService implements OnModuleInit {
             presetReqStart = new Date(EXAM_CONFIG.examStart);
             presetReqEnd = new Date(EXAM_CONFIG.examEnd);
         }
-        
+
         const isPresetMode = presetReqStart !== null;
         const reqStart = isPresetMode ? presetReqStart! : new Date(dto.requestedStartTime ?? '');
-        const reqEnd   = isPresetMode ? presetReqEnd!   : new Date(dto.requestedEndTime   ?? '');
+        const reqEnd = isPresetMode ? presetReqEnd! : new Date(dto.requestedEndTime ?? '');
 
         if (isNaN(reqStart.getTime()) || isNaN(reqEnd.getTime())) {
             return { warning: null }; // Invalid dates; will fail creation anyway
@@ -406,9 +406,9 @@ export class BorrowService implements OnModuleInit {
 
         if (previousBooking?.requestedEndTime) {
             const gapBefore = reqStart.getTime() - previousBooking.requestedEndTime.getTime();
-            if (gapBefore < TURNOVER_BUFFER_MS) { 
+            if (gapBefore < TURNOVER_BUFFER_MS) {
                 isTightTurnover = true;
-                tightSide = 'previous'; 
+                tightSide = 'previous';
                 if (gapBefore < 10 * 60 * 1000) isVeryTight = true;
                 prevTimeStr = formatTime(previousBooking.requestedEndTime);
             }
@@ -432,14 +432,14 @@ export class BorrowService implements OnModuleInit {
         } else if (tightSide === 'next') {
             color = '#c2410c'; bg = '#ffedd5'; border = '#fdba74'; // orange
         }
-        
+
         let message = '';
         if (tightSide === 'previous') message = `⚠️ Previous booking ends at ${prevTimeStr} — pickup may be delayed`;
         else if (tightSide === 'next') message = `⚠️ Next booking starts at ${nextTimeStr} — please return on time`;
         else message = `⚠️ Tight schedule between ${prevTimeStr} and ${nextTimeStr} — be on time for pickup & return`;
 
-        return { 
-            warning: { side: tightSide, showUIBox, color, bg, border, message, shortText: 'May be a slight delay' } 
+        return {
+            warning: { side: tightSide, showUIBox, color, bg, border, message, shortText: 'May be a slight delay' }
         };
     }
 
@@ -449,7 +449,7 @@ export class BorrowService implements OnModuleInit {
         const result = await this.prisma.$transaction(async (tx) => {
             const transaction = await tx.borrowTransaction.findUnique({
                 where: { id: transactionId },
-                include: { chat: true, renter: true, item: true },
+                include: { renter: true, item: true },
             });
 
             if (!transaction) throw new NotFoundException('Transaction not found');
@@ -481,18 +481,6 @@ export class BorrowService implements OnModuleInit {
                 throw new ConflictException('Transaction could not be accepted. It may have already changed state.');
             }
 
-            // Create or unlock chat
-            await tx.borrowTransaction.update({
-                where: { id: transactionId },
-                data: {}
-            });
-
-            if (transaction.chat) {
-                await tx.chat.update({ where: { id: transaction.chat.id }, data: { isUnlocked: true } });
-            } else {
-                await tx.chat.create({ data: { transactionId, isUnlocked: true } });
-            }
-
             this.logger.log(`Transaction ${transactionId} accepted by lender ${lenderId}`);
 
             // Send notification to renter
@@ -505,7 +493,7 @@ export class BorrowService implements OnModuleInit {
 
             return tx.borrowTransaction.findUnique({
                 where: { id: transactionId },
-                include: { chat: true, item: true, renter: true }
+                include: { item: true, renter: true }
             });
         });
 
@@ -593,176 +581,176 @@ export class BorrowService implements OnModuleInit {
         this.logger.log({ event: 'PAYMENT_START', txId: transactionId, userId: renterId });
 
         try {
-        const result = await this.prisma.$transaction(async (tx) => {
-            // ── 1. Advisory lock ─────────────────────────────────────────
-            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${transactionId}))`;
+            const result = await this.prisma.$transaction(async (tx) => {
+                // ── 1. Advisory lock ─────────────────────────────────────────
+                await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${transactionId}))`;
 
-            // ── 2. Lock wallet row ───────────────────────────────────────
-            const [walletRow] = await tx.$queryRaw<any[]>`
+                // ── 2. Lock wallet row ───────────────────────────────────────
+                const [walletRow] = await tx.$queryRaw<any[]>`
                 SELECT * FROM "wallets" WHERE "userId" = ${renterId} FOR UPDATE
             `;
-            if (!walletRow) throw new NotFoundException('Wallet not found');
+                if (!walletRow) throw new NotFoundException('Wallet not found');
 
-            // ── 3. Lock transaction row ──────────────────────────────────
-            const [txRow] = await tx.$queryRaw<any[]>`
+                // ── 3. Lock transaction row ──────────────────────────────────
+                const [txRow] = await tx.$queryRaw<any[]>`
                 SELECT * FROM "borrow_transactions"
                 WHERE id = ${transactionId}
                 FOR UPDATE
             `;
-            if (!txRow) throw new NotFoundException('Transaction not found');
+                if (!txRow) throw new NotFoundException('Transaction not found');
 
-            // ── 4. Validate ──────────────────────────────────────────────
-            if (txRow.renterId !== renterId) {
-                throw new ForbiddenException('Only the renter can pay');
-            }
-            if (isNaN(txRow.totalPaid) || txRow.totalPaid <= 0) {
-                throw new BadRequestException('Invalid payment amount');
-            }
+                // ── 4. Validate ──────────────────────────────────────────────
+                if (txRow.renterId !== renterId) {
+                    throw new ForbiddenException('Only the renter can pay');
+                }
+                if (isNaN(txRow.totalPaid) || txRow.totalPaid <= 0) {
+                    throw new BadRequestException('Invalid payment amount');
+                }
 
-            // ── 5. Idempotency — already paid? ───────────────────────────
-            if (txRow.paymentStatus === 'PAID') {
-                return txRow;
-            }
-            if (txRow.status !== TransactionStatus.PAYMENT_PENDING) {
-                throw new BadRequestException('Checkout not initiated. Please start payment again.');
-            }
+                // ── 5. Idempotency — already paid? ───────────────────────────
+                if (txRow.paymentStatus === 'PAID') {
+                    return txRow;
+                }
+                if (txRow.status !== TransactionStatus.PAYMENT_PENDING) {
+                    throw new BadRequestException('Checkout not initiated. Please start payment again.');
+                }
 
-            // ── 6. Validate HOLD ─────────────────────────────────────────
-            const holdRecord = await tx.walletTransaction.findFirst({
-                where: { borrowTxId: transactionId, type: 'HOLD' }
-            });
-            if (!holdRecord || Math.abs(holdRecord.amount - txRow.totalPaid) > 0.01) {
-                throw new BadRequestException('Payment session invalid or expired. Please start payment again.');
-            }
-
-            // ── 7. Expiry check ──────────────────────────────────────────
-            const expiryThreshold = new Date(Date.now() - 10 * 60 * 1000);
-            if (txRow.paymentStartedAt && txRow.paymentStartedAt < expiryThreshold) {
-                await tx.wallet.update({
-                    where: { id: walletRow.id },
-                    data: { holdBalance: { decrement: txRow.totalPaid } }
+                // ── 6. Validate HOLD ─────────────────────────────────────────
+                const holdRecord = await tx.walletTransaction.findFirst({
+                    where: { borrowTxId: transactionId, type: 'HOLD' }
                 });
-                await tx.walletTransaction.create({
+                if (!holdRecord || Math.abs(holdRecord.amount - txRow.totalPaid) > 0.01) {
+                    throw new BadRequestException('Payment session invalid or expired. Please start payment again.');
+                }
+
+                // ── 7. Expiry check ──────────────────────────────────────────
+                const expiryThreshold = new Date(Date.now() - 10 * 60 * 1000);
+                if (txRow.paymentStartedAt && txRow.paymentStartedAt < expiryThreshold) {
+                    await tx.wallet.update({
+                        where: { id: walletRow.id },
+                        data: { holdBalance: { decrement: txRow.totalPaid } }
+                    });
+                    await tx.walletTransaction.create({
+                        data: {
+                            walletId: walletRow.id,
+                            type: 'RELEASE',
+                            amount: txRow.totalPaid,
+                            balanceAfter: walletRow.balance,
+                            description: `Hold released - Session expired: ${txRow.id}`,
+                            borrowTxId: txRow.id
+                        }
+                    });
+                    await tx.borrowTransaction.update({
+                        where: { id: txRow.id },
+                        data: { status: TransactionStatus.CANCELLED }
+                    });
+                    this.logger.warn({ event: 'PAYMENT_EXPIRED', txId: txRow.id, amount: txRow.totalPaid });
+                    return { _isExpired: true };
+                }
+
+                // ── 8. Pre-settlement validation ─────────────────────────────
+                this.validateTransition(txRow.status as TransactionStatus, TransactionStatus.PAID);
+
+                if (walletRow.balance < txRow.totalPaid) {
+                    throw new BadRequestException('Insufficient balance');
+                }
+
+                const settledBalance = parseFloat((walletRow.balance - txRow.totalPaid).toFixed(2));
+
+                // Debit-side idempotency guard
+                const existingDebit = await tx.walletTransaction.findFirst({
+                    where: { borrowTxId: transactionId, type: { in: ['DEBIT', 'PLATFORM_FEE'] } }
+                });
+                if (existingDebit) {
+                    return await tx.borrowTransaction.findUnique({ where: { id: transactionId } });
+                }
+
+                // ── 9. Financial settlement (atomic) ─────────────────────────
+                // 9a. Settle wallet: deduct balance + release hold
+                const settledWallet = await tx.wallet.update({
+                    where: { id: walletRow.id },
                     data: {
-                        walletId: walletRow.id,
-                        type: 'RELEASE',
-                        amount: txRow.totalPaid,
-                        balanceAfter: walletRow.balance,
-                        description: `Hold released - Session expired: ${txRow.id}`,
-                        borrowTxId: txRow.id
+                        balance: settledBalance,
+                        holdBalance: { decrement: txRow.totalPaid }
                     }
                 });
-                await tx.borrowTransaction.update({
-                    where: { id: txRow.id },
-                    data: { status: TransactionStatus.CANCELLED }
-                });
-                this.logger.warn({ event: 'PAYMENT_EXPIRED', txId: txRow.id, amount: txRow.totalPaid });
-                return { _isExpired: true };
-            }
 
-            // ── 8. Pre-settlement validation ─────────────────────────────
-            this.validateTransition(txRow.status as TransactionStatus, TransactionStatus.PAID);
-
-            if (walletRow.balance < txRow.totalPaid) {
-                throw new BadRequestException('Insufficient balance');
-            }
-
-            const settledBalance = parseFloat((walletRow.balance - txRow.totalPaid).toFixed(2));
-
-            // Debit-side idempotency guard
-            const existingDebit = await tx.walletTransaction.findFirst({
-                where: { borrowTxId: transactionId, type: { in: ['DEBIT', 'PLATFORM_FEE'] } }
-            });
-            if (existingDebit) {
-                return await tx.borrowTransaction.findUnique({ where: { id: transactionId } });
-            }
-
-            // ── 9. Financial settlement (atomic) ─────────────────────────
-            // 9a. Settle wallet: deduct balance + release hold
-            const settledWallet = await tx.wallet.update({
-                where: { id: walletRow.id },
-                data: {
-                    balance: settledBalance,
-                    holdBalance: { decrement: txRow.totalPaid }
+                if (settledWallet.balance < 0) {
+                    throw new ConflictException('Wallet integrity violation: Negative balance prevented.');
                 }
-            });
 
-            if (settledWallet.balance < 0) {
-                throw new ConflictException('Wallet integrity violation: Negative balance prevented.');
-            }
-
-            // 9b. DEBIT ledger entry
-            await tx.walletTransaction.create({
-                data: {
-                    walletId: walletRow.id,
-                    type: 'DEBIT',
-                    amount: txRow.totalPaid,
-                    balanceAfter: settledBalance,
-                    description: `Settled payment for rental: ${txRow.id}`,
-                    borrowTxId: txRow.id,
-                }
-            });
-
-            // 9c. PLATFORM_FEE ledger entry (if applicable)
-            if (txRow.platformFee && txRow.platformFee > 0) {
+                // 9b. DEBIT ledger entry
                 await tx.walletTransaction.create({
                     data: {
                         walletId: walletRow.id,
-                        type: 'PLATFORM_FEE',
-                        amount: txRow.platformFee,
+                        type: 'DEBIT',
+                        amount: txRow.totalPaid,
                         balanceAfter: settledBalance,
-                        description: `Platform fee for rental: ${txRow.id}`,
+                        description: `Settled payment for rental: ${txRow.id}`,
                         borrowTxId: txRow.id,
                     }
                 });
-            }
 
-            // ── 10. Update transaction status ────────────────────────────
-            const updatedTx = await tx.borrowTransaction.updateMany({
-                where: { id: transactionId, paymentStatus: 'PENDING' },
-                data: {
-                    paymentStatus: 'PAID',
-                    status: TransactionStatus.PAID,
-                    escrowHeld: true,
-                    paidAt: new Date(),
-                },
+                // 9c. PLATFORM_FEE ledger entry (if applicable)
+                if (txRow.platformFee && txRow.platformFee > 0) {
+                    await tx.walletTransaction.create({
+                        data: {
+                            walletId: walletRow.id,
+                            type: 'PLATFORM_FEE',
+                            amount: txRow.platformFee,
+                            balanceAfter: settledBalance,
+                            description: `Platform fee for rental: ${txRow.id}`,
+                            borrowTxId: txRow.id,
+                        }
+                    });
+                }
+
+                // ── 10. Update transaction status ────────────────────────────
+                const updatedTx = await tx.borrowTransaction.updateMany({
+                    where: { id: transactionId, paymentStatus: 'PENDING' },
+                    data: {
+                        paymentStatus: 'PAID',
+                        status: TransactionStatus.PAID,
+                        escrowHeld: true,
+                        paidAt: new Date(),
+                    },
+                });
+
+                if (updatedTx.count !== 1) {
+                    const check = await tx.borrowTransaction.findUnique({ where: { id: transactionId } });
+                    if (check && check.paymentStatus === 'PAID') return check;
+                    throw new ConflictException('Transaction state conflict. Payment may have already been processed.');
+                }
+
+                // ── 11. Generate OTPs ────────────────────────────────────────
+                const pickupOTP = Math.floor(100000 + Math.random() * 900000).toString();
+                const returnOTP = Math.floor(100000 + Math.random() * 900000).toString();
+                await tx.transactionOTP.create({
+                    data: { transactionId: txRow.id, pickupOTP, returnOTP }
+                });
+
+                // ── 12. Final write-after-read verification ──────────────────
+                const verifiedTx = await tx.borrowTransaction.findUnique({
+                    where: { id: transactionId }
+                });
+
+                if (!verifiedTx || verifiedTx.status !== TransactionStatus.PAID || verifiedTx.paymentStatus !== 'PAID') {
+                    throw new ConflictException('Transaction state mismatch: Integrity verification failed.');
+                }
+
+                this.logger.log({ event: 'PAYMENT_SUCCESS', txId: transactionId, amount: txRow.totalPaid });
+                return verifiedTx;
             });
 
-            if (updatedTx.count !== 1) {
-                const check = await tx.borrowTransaction.findUnique({ where: { id: transactionId } });
-                if (check && check.paymentStatus === 'PAID') return check;
-                throw new ConflictException('Transaction state conflict. Payment may have already been processed.');
+            if (result && (result as any)._isExpired) {
+                throw new BadRequestException('Checkout session expired. Please rebook.');
             }
 
-            // ── 11. Generate OTPs ────────────────────────────────────────
-            const pickupOTP = Math.floor(100000 + Math.random() * 900000).toString();
-            const returnOTP = Math.floor(100000 + Math.random() * 900000).toString();
-            await tx.transactionOTP.create({
-                data: { transactionId: txRow.id, pickupOTP, returnOTP }
-            });
-
-            // ── 12. Final write-after-read verification ──────────────────
-            const verifiedTx = await tx.borrowTransaction.findUnique({
-                where: { id: transactionId }
-            });
-
-            if (!verifiedTx || verifiedTx.status !== TransactionStatus.PAID || verifiedTx.paymentStatus !== 'PAID') {
-                throw new ConflictException('Transaction state mismatch: Integrity verification failed.');
-            }
-
-            this.logger.log({ event: 'PAYMENT_SUCCESS', txId: transactionId, amount: txRow.totalPaid });
-            return verifiedTx;
-        });
-
-        if (result && (result as any)._isExpired) {
-            throw new BadRequestException('Checkout session expired. Please rebook.');
+            return result;
+        } catch (error: any) {
+            this.logger.error({ event: 'PAYMENT_FAILED', txId: transactionId, error: error?.message || error });
+            throw error;
         }
-
-        return result;
-    } catch (error: any) {
-        this.logger.error({ event: 'PAYMENT_FAILED', txId: transactionId, error: error?.message || error });
-        throw error;
-    }
     }
 
     // ─── 4. Item Collected → Start Timer (ACTIVE) ───────────────────────────
@@ -1004,7 +992,7 @@ export class BorrowService implements OnModuleInit {
                 item: { select: { id: true, title: true, images: true } },
                 renter: { select: { id: true, name: true, email: true } },
                 lender: { select: { id: true, name: true, email: true } },
-                chat: { select: { id: true, isUnlocked: true } },
+                // Removed chat eagerly fetching
                 otp: true,
             },
         });
@@ -1094,7 +1082,7 @@ export class BorrowService implements OnModuleInit {
                     const [latestTx] = await prisma.$queryRaw<any[]>`
                         SELECT status, "totalPaid", "renterId" FROM "borrow_transactions" WHERE id = ${tx.id} FOR UPDATE
                     `;
-                    
+
                     if (!latestTx || latestTx.status !== TransactionStatus.PAYMENT_PENDING) {
                         return; // Already processed or changed state
                     }

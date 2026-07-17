@@ -9,7 +9,7 @@ import {
     WsException,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -87,10 +87,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     @SubscribeMessage('join-chat')
     async handleJoinChat(
-        @MessageBody() data: { transactionId: string },
+        @MessageBody() data: { chatId: string },
         @ConnectedSocket() client: AuthSocket,
     ) {
-        const chat = await this.validateChatAccess(data.transactionId, client.userId!);
+        const chat = await this.validateChatAccess(data.chatId, client.userId!);
         client.join(`chat:${chat.id}`);
 
         // Send last 50 messages on join
@@ -110,7 +110,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     @SubscribeMessage('send-message')
     async handleMessage(
-        @MessageBody() data: { transactionId: string; content: string },
+        @MessageBody() data: { chatId: string; content: string },
         @ConnectedSocket() client: AuthSocket,
     ) {
         if (!data.content?.trim()) throw new WsException('Message content cannot be empty');
@@ -126,7 +126,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             this.recentMessages.set(client.userId!, { count: 1, expiresAt: now + 60000 });
         }
 
-        const chat = await this.validateChatAccess(data.transactionId, client.userId!);
+        const chat = await this.validateChatAccess(data.chatId, client.userId!);
+
+        // Update chat interaction time & unarchive internally
+        await this.prisma.chat.update({
+            where: { id: chat.id },
+            data: { isArchived: false, updatedAt: new Date() }
+        });
 
         // 2. NORMALIZATION & BYPASS FILTER
         const normalized = data.content
@@ -137,24 +143,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const phoneRegex = /\b(\d[\s-]?){8,12}\b/;
         const upiRegex = /\b[\w.-]+@(upi|ybl|okaxis|okhdfc|paytm)\b/i;
         const socialRegex = /(instagram|insta|snap|snapchat|telegram|whatsapp|call me|text me)/i;
+        const emailRegex = /\b[A-Za-z0-9._%+-]+(@|\(at\))[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b/i;
 
-        if (phoneRegex.test(normalized) || upiRegex.test(normalized) || socialRegex.test(normalized)) {
-            this.logger.warn(`Blocked contact sharing attempt from user ${client.userId} (normalized: ${normalized})`);
-            data.content = "⚠️ For your safety, contact sharing is blocked until payment";
-        }
+        if (phoneRegex.test(normalized) || upiRegex.test(normalized) || socialRegex.test(normalized) || emailRegex.test(normalized)) {
+            // Only allow if transaction is natively PAID, ACTIVE, GRACE, LATE, RETURNED
+            const paidTransaction = await this.prisma.borrowTransaction.findFirst({
+                where: {
+                    itemId: chat.itemId,
+                    renterId: chat.renterId,
+                    status: { in: ['PAID', 'ACTIVE', 'GRACE', 'LATE', 'RETURNED'] }
+                }
+            });
 
-        if (chat.transaction.status === 'REQUESTED' || chat.transaction.status === 'ACCEPTED') {
-            const SAFE_PINGS = [
-                "is this available?",
-                "is this available right now?",
-                "is this still available?",
-                "where is pickup?",
-                "what is the condition?",
-                "when can i collect?"
-            ];
-            
-            if (!SAFE_PINGS.includes(normalized)) {
-                throw new WsException('Complete payment to unlock full chat. Only pre-defined questions are allowed.');
+            if (!paidTransaction) {
+                this.logger.warn(`Blocked contact sharing attempt from user ${client.userId} (normalized: ${normalized})`);
+                data.content = "⚠️ For your safety, contact information can only be shared after a booking is confirmed.";
             }
         }
 
@@ -171,23 +174,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.server.to(`chat:${chat.id}`).emit('new-message', message);
 
         // Send real-time UI notification to the OTHER user's personal room
-        const recipientId = chat.transaction.renterId === client.userId! ? chat.transaction.lenderId : chat.transaction.renterId;
+        const recipientId = chat.renterId === client.userId! ? chat.lenderId : chat.renterId;
         this.server.to(`user:${recipientId}`).emit('notification', {
             title: `New message from ${message.sender.name}`,
-            body: message.content,
-            link: `#/chat/${chat.transactionId}`
+            body: data.content === "⚠️ For your safety, contact information can only be shared after a booking is confirmed." ? "(System Warning)" : message.content,
+            link: `#/chat/${chat.id}` // link is updated to use chatId
         });
 
         // Send email notification to the recipient
         const recipient = await this.prisma.user.findUnique({ where: { id: recipientId } });
-        
+
         if (recipient) {
-             this.emailService.sendNotificationEmail(
-                 recipient.email,
-                 `New Message from ${message.sender.name} - LendIT`,
-                 `New Message from ${message.sender.name}`,
-                 `You received a new message regarding your rental:\n\n"${message.content}"\n\nPlease log in to the LendIT platform to reply.`
-             ).catch(err => this.logger.error('Failed to send message notification', err));
+            this.emailService.sendNotificationEmail(
+                recipient.email,
+                `New Message from ${message.sender.name} - LendIT`,
+                `New Message from ${message.sender.name}`,
+                `You received a new message regarding an item on LendIT:\n\n"${message.content}"\n\nPlease log in to the LendIT platform to reply.`
+            ).catch(err => this.logger.error('Failed to send message notification', err));
         }
 
         return message; // This acts as an acknowledgment to the sender
@@ -195,22 +198,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // ─── Access Control ──────────────────────────────────────────────────────
 
-    private async validateChatAccess(transactionId: string, userId: string) {
+    private async validateChatAccess(chatId: string, userId: string) {
         const chat = await this.prisma.chat.findUnique({
-            where: { transactionId },
-            include: { transaction: { select: { renterId: true, lenderId: true, status: true } } },
+            where: { id: chatId }
         });
 
         if (!chat) {
-             this.logger.warn(`Chat not found for transaction: ${transactionId}`);
-             throw new WsException('Chat not found');
+            this.logger.warn(`Chat not found: ${chatId}`);
+            throw new WsException('Chat not found');
         }
 
-        const isParty =
-            chat.transaction.renterId === userId || chat.transaction.lenderId === userId;
-            
+        const isParty = chat.renterId === userId || chat.lenderId === userId;
+
         if (!isParty) {
-            this.logger.warn(`Access denied! user=${userId}, renter=${chat.transaction.renterId}, lender=${chat.transaction.lenderId}`);
+            this.logger.warn(`Access denied! user=${userId}, renter=${chat.renterId}, lender=${chat.lenderId}`);
             throw new WsException('Access denied');
         }
 

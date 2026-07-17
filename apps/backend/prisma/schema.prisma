@@ -111,6 +111,8 @@ model User {
   itemsListed          Item[]               @relation("LenderItems")
   borrowsAsRenter     BorrowTransaction[]  @relation("RenterTransactions")
   borrowsAsLender     BorrowTransaction[]  @relation("LenderTransactions")
+  chatsAsRenter       Chat[]               @relation("RenterChats")
+  chatsAsLender       Chat[]               @relation("LenderChats")
   messagesSent        Message[]
   refreshTokens       RefreshToken[]
   filedReports        Report[]             @relation("FiledReports")
@@ -177,6 +179,7 @@ model Item {
 
   // Relations
   transactions BorrowTransaction[]
+  chats        Chat[]
 
   @@map("items")
 }
@@ -248,7 +251,6 @@ model BorrowTransaction {
   updatedAt      DateTime          @updatedAt
 
   // Relations
-  chat           Chat?
   walletCredits  WalletTransaction[]
   otp            TransactionOTP?
 
@@ -281,14 +283,21 @@ model TransactionOTP {
 
 model Chat {
   id            String            @id @default(uuid())
-  transactionId String            @unique
-  transaction   BorrowTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  isUnlocked    Boolean           @default(false) // true only after ACCEPTED
+  itemId        String
+  item          Item              @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  renterId      String
+  renter        User              @relation("RenterChats", fields: [renterId], references: [id])
+  lenderId      String
+  lender        User              @relation("LenderChats", fields: [lenderId], references: [id])
+  
+  isArchived    Boolean           @default(false)
   createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   // Relations
   messages      Message[]
 
+  @@unique([itemId, renterId])
   @@map("chats")
 }
 

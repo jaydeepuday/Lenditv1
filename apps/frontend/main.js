@@ -7,7 +7,6 @@
 import { api, BACKEND_URL } from './api.js';
 
 // ─── State ───────────────────────────────────────────────────
-const ENABLE_EXAM_PASS = false; // 🚩 Feature flag — set true to show Exam Pass option in UI
 
 const state = {
   user: null,         // Current user profile or null
@@ -200,33 +199,6 @@ function footerHtml() {
     </footer>`;
 }
 
-// ─── Toast Notifications ─────────────────────────────────────
-const $toastContainer = document.createElement('div');
-$toastContainer.id = 'toast-container';
-document.body.appendChild($toastContainer);
-
-function showToast(title, body, link) {
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.innerHTML = `
-    <div class="toast-title">${escapeHtml(title)}</div>
-    <div class="toast-body">${escapeHtml(body)}</div>
-  `;
-  if (link) {
-    toast.style.cursor = 'pointer';
-    toast.addEventListener('click', () => { navigate(link); toast.remove(); });
-  }
-  $toastContainer.appendChild(toast);
-
-  // Animate in
-  requestAnimationFrame(() => toast.classList.add('show'));
-
-  // Auto remove
-  setTimeout(() => {
-    toast.classList.remove('show');
-    setTimeout(() => toast.remove(), 300);
-  }, 5000);
-}
 
 let globalSocket = null;
 function initGlobalSocket() {
@@ -249,24 +221,18 @@ function initGlobalSocket() {
           updateChatBadges();
         }
       }
-      showToast(payload.title, payload.body, payload.link);
+      showToast({ type: 'info', title: payload.title, message: payload.body, link: payload.link });
     });
   }
   // Only show FAB if user has active chats — don't distract new/idle users
   checkAndShowFab();
 }
 
-/** Check for active transactions and show FAB only if any exist */
+/** Check for chats and show FAB only if any exist */
 async function checkAndShowFab() {
   try {
-    const CHAT_STATUSES = ['ACCEPTED', 'PAID', 'ACTIVE', 'GRACE', 'LATE'];
-    const [rentals, lendings] = await Promise.all([api.myRentals(), api.myLendings()]);
-    const allTx = [
-      ...(Array.isArray(rentals) ? rentals : rentals.data || []),
-      ...(Array.isArray(lendings) ? lendings : lendings.data || []),
-    ];
-    const hasActiveChats = allTx.some(tx => CHAT_STATUSES.includes(tx.status));
-    if (hasActiveChats) createFab();
+    const chats = await api.myChats();
+    if (chats && chats.length > 0) createFab();
     else removeFab();
   } catch {
     // Can't fetch — don't show FAB
@@ -923,6 +889,7 @@ async function renderItemDetail(id) {
                    <span>✔ Takes less than 2 minutes</span>
                  </div>
                </form>
+               <button id="btn-chat-lender" class="btn btn-secondary" style="margin-top:16px; width:100%; min-height:50px; font-weight:700; border-radius:14px; background:var(--color-surface); border:2px solid var(--color-border); color:var(--color-text-main);">💬 Chat with Lender</button>
              ` : `
                <div style="padding:24px; background:var(--color-surface); border-radius:12px; color:var(--color-text-muted);">
                  😔 This item is currently unavailable. <a href="#/browse" style="color:var(--color-primary);">Browse others →</a>
@@ -1155,12 +1122,29 @@ async function renderItemDetail(id) {
         } else {
           showError(err.message || 'Something went wrong. Try again.');
         }
-      } finally {
-        if (btn) btn.dataset.loading = '0';
       }
     }, signal);
+
+    // Bind chat entry button
+    const $btnChatLender = document.getElementById('btn-chat-lender');
+    if ($btnChatLender) {
+      listen($btnChatLender, 'click', async () => {
+        if (!requireAuth()) return;
+        $btnChatLender.disabled = true;
+        $btnChatLender.textContent = 'Opening chat...';
+        try {
+          const chat = await api.createChat(item.id);
+          navigate('#/chat/' + chat.id);
+        } catch (err) {
+          $btnChatLender.disabled = false;
+          $btnChatLender.textContent = '💬 Chat with Lender';
+          showError(err.message || 'Failed to open chat');
+        }
+      }, signal);
+    }
   }
 }
+
 
 // ─── Page: Auth ──────────────────────────────────────────────
 
@@ -1308,13 +1292,13 @@ function renderAuth() {
       listen($collegeInput, 'input', (e) => {
         const val = e.target.value.toLowerCase().trim();
         $suggestions.innerHTML = '';
-        
+
         if (!val) {
           $suggestions.classList.remove('visible');
           return;
         }
 
-        const matches = ALLOWED_UNIVERSITIES.filter(u => 
+        const matches = ALLOWED_UNIVERSITIES.filter(u =>
           u.name.toLowerCase().includes(val)
         );
 
@@ -1560,6 +1544,87 @@ async function renderWallet() {
   load();
 }
 
+function renderSingleRentalCard(tx, isLender) {
+  const itemData = tx.item || {};
+  const CHAT_STATUSES = ['ACCEPTED', 'ACTIVE', 'GRACE', 'LATE'];
+  const showChat = CHAT_STATUSES.includes(tx.status);
+  const hasPaid = tx.escrowHeld;
+
+  // Lender controls
+  let lenderOtpHtml = '';
+  if (isLender) {
+    if (tx.status === 'REQUESTED') {
+      lenderOtpHtml = `
+        <button class="btn btn-sm btn-primary" data-action="Accept" data-txid="${tx.id}">Accept</button>
+        <button class="btn btn-sm btn-danger" data-action="Reject" data-txid="${tx.id}">Reject</button>
+      `;
+    } else if (tx.status === 'ACCEPTED' && !hasPaid) {
+      lenderOtpHtml = `<button class="btn btn-sm btn-danger" data-action="Cancel" data-txid="${tx.id}">Cancel</button>`;
+    } else if (tx.status === 'PAID') { // Now PAID means escrow held
+      lenderOtpHtml = `
+        <button class="btn btn-sm btn-secondary" data-showotp="pickup" data-txid="${tx.id}">🔑 Show Pickup OTP</button>
+        <button class="btn btn-sm btn-danger" data-action="Cancel" data-txid="${tx.id}">Cancel</button>
+      `;
+    } else if (['ACTIVE', 'GRACE', 'LATE'].includes(tx.status)) {
+      lenderOtpHtml = `<button class="btn btn-sm btn-secondary" data-showotp="return" data-txid="${tx.id}">🔑 Show Return OTP</button>`;
+    }
+  }
+
+  // Renter controls
+  let renterOtpHtml = '';
+  if (!isLender) {
+    if (tx.status === 'REQUESTED') {
+      renterOtpHtml = `
+        <span style="font-size:0.8rem;color:var(--color-text-muted);">Waiting for lender to accept…</span>
+        <button class="btn btn-sm btn-danger" data-action="Cancel" data-txid="${tx.id}" style="margin-left:8px;">Cancel</button>
+      `;
+    } else if (tx.status === 'ACCEPTED') {
+      renterOtpHtml = `
+        <button class="btn btn-sm btn-primary" data-action="Pay" data-txid="${tx.id}">Pay</button>
+        <button class="btn btn-sm btn-danger" data-action="Cancel" data-txid="${tx.id}">Cancel</button>
+      `;
+    } else if (tx.status === 'PAID') {
+      renterOtpHtml = `
+        <div class="otp-input-row" style="margin-bottom:8px;">
+          <input type="text" class="form-input otp-field" inputmode="numeric" maxlength="6" placeholder="Enter Pickup OTP" data-otpfield="pickup-${tx.id}" />
+          <button class="btn btn-sm btn-primary" data-verifyotp="pickup" data-txid="${tx.id}">Confirm Pickup</button>
+        </div>
+        <button class="btn btn-sm btn-danger" data-action="Cancel" data-txid="${tx.id}">Cancel Request</button>
+      `;
+    } else if (['ACTIVE', 'GRACE', 'LATE'].includes(tx.status)) {
+      renterOtpHtml = `
+        <div class="otp-input-row">
+          <input type="text" class="form-input otp-field" inputmode="numeric" maxlength="6" placeholder="Enter Return OTP" data-otpfield="return-${tx.id}" />
+          <button class="btn btn-sm btn-secondary" data-verifyotp="return" data-txid="${tx.id}">Confirm Return</button>
+        </div>
+      `;
+    }
+  }
+
+  return `
+    <div class="rental-card" data-id="${tx.id}">
+      <img class="rental-card-img" src="${itemImage(itemData.images)}" alt="${escapeHtml(itemData.title || '')}" loading="lazy" />
+      <div class="rental-card-body">
+        <div class="rental-card-title">${escapeHtml(itemData.title || 'Unknown Item')}</div>
+        <div class="rental-card-meta">
+          ${tx.durationValue} ${tx.durationType === 'HOURS' ? 'hour(s)' : 'day(s)'}
+          · Total: ${formatPrice(tx.totalPaid)}
+          · ${statusBadge(tx.status)}
+        </div>
+        ${(tx.pickupLocation || tx.returnLocation) ? `
+        <div class="rental-locations">
+          <span>📍 Pickup: <strong>${locationLabel(tx.pickupLocation)}</strong></span>
+          <span>📦 Return: <strong>${locationLabel(tx.returnLocation)}</strong></span>
+        </div>` : ''}
+        <div class="rental-card-actions" id="card-actions-${tx.id}">
+          ${isLender ? lenderOtpHtml : renterOtpHtml}
+          ${showChat ? `<button class="btn btn-sm btn-secondary" data-chat="${tx.id}">💬 Chat</button>` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // ─── Page: My Rentals ────────────────────────────────────────
 
 async function renderRentals() {
@@ -1567,6 +1632,7 @@ async function renderRentals() {
 
   const signal = createPageController();
   let activeTab = 'borrowed';
+  let isLender = false;
 
   $app.innerHTML = `
     <div class="page">
@@ -1582,165 +1648,124 @@ async function renderRentals() {
   const $tabs = document.getElementById('rental-tabs');
   const $list = document.getElementById('rental-list');
 
-  async function loadTab() {
-    showLoading();
+  // Re-fetch a single transaction and replace its specific DOM card using its data-id
+  async function refreshSingleCard(txId) {
     try {
-      const transactions = activeTab === 'borrowed'
-        ? await api.myRentals()
-        : await api.myLendings();
+      const tx = await api.getTransaction(txId);
+      const newCardHtml = renderSingleRentalCard(tx, isLender);
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = newCardHtml.trim();
 
-      const items = Array.isArray(transactions) ? transactions : (transactions.data || []);
+      const existingCard = $list.querySelector(`.rental-card[data-id="${txId}"]`);
+      if (existingCard && tempDiv.firstChild) {
+        existingCard.replaceWith(tempDiv.firstChild);
+      }
+    } catch (err) {
+      console.error('Failed to refresh card:', err);
+    }
+  }
 
-      if (items.length === 0) {
-        $list.innerHTML = `<div class="empty-state"><p>No ${activeTab === 'borrowed' ? 'borrowed' : 'lent'} items yet</p></div>`;
+  // Event Delegation for all list interactions!
+  listen($list, 'click', async (e) => {
+    // Chat Button -> Navigate
+    const btnChat = e.target.closest('[data-chat]');
+    if (btnChat) {
+      navigate(`#/chat/${btnChat.dataset.chat}`);
+      return;
+    }
+
+    // Standard Actions -> Execute and Re-render isolated card
+    const btnAction = e.target.closest('[data-action]');
+    if (btnAction) {
+      const action = btnAction.dataset.action;
+      const txId = btnAction.dataset.txid;
+      const handler = ACTION_HANDLERS[action];
+      if (!handler) return;
+
+      btnAction.disabled = true;
+      btnAction.textContent = '...';
+      try {
+        await handler(txId);
+        await refreshSingleCard(txId);
+      } catch (err) {
+        showError(err.message || 'Failed action');
+        btnAction.disabled = false;
+        btnAction.textContent = action;
+      }
+      return;
+    }
+
+    // OTP Verify -> Execute and Re-render isolated card
+    const btnVerify = e.target.closest('[data-verifyotp]');
+    if (btnVerify) {
+      const type = btnVerify.dataset.verifyotp; // 'pickup' or 'return'
+      const txId = btnVerify.dataset.txid;
+      const $field = $list.querySelector(`[data-otpfield="${type}-${txId}"]`);
+      const otp = $field?.value?.trim();
+
+      if (!otp || otp.length !== 6) {
+        showToast({ type: 'warning', message: 'Enter the 6-digit OTP' });
         return;
       }
 
-      const CHAT_STATUSES = ['ACCEPTED', 'ACTIVE', 'GRACE', 'LATE'];
-      const isLender = activeTab === 'lent';
+      btnVerify.disabled = true;
+      btnVerify.textContent = '...';
+      try {
+        if (type === 'pickup') { await api.collectBorrow(txId, { otp }); }
+        else { await api.returnBorrow(txId, { otp }); }
+        await refreshSingleCard(txId);
+      } catch (err) {
+        showToast({ type: 'error', message: err.message || 'Invalid OTP' });
+        btnVerify.disabled = false;
+        btnVerify.textContent = type === 'pickup' ? 'Confirm Pickup' : 'Confirm Return';
+      }
+      return;
+    }
 
-      $list.innerHTML = items.map(tx => {
-        const itemData = tx.item || {};
-        const showChat = CHAT_STATUSES.includes(tx.status);
-        const hasPaid = tx.escrowHeld;
+    // LENDER Show OTP -> DOM transform inside card
+    const btnOtp = e.target.closest('[data-showotp]');
+    if (btnOtp) {
+      const type = btnOtp.dataset.showotp;
+      const txId = btnOtp.dataset.txid;
 
-        // Lender controls
-        let lenderOtpHtml = '';
-        if (isLender) {
-          if (tx.status === 'REQUESTED') {
-            lenderOtpHtml = `
-              <button class="btn btn-sm btn-primary" data-action="Accept" data-txid="${tx.id}">Accept</button>
-              <button class="btn btn-sm btn-danger" data-action="Reject" data-txid="${tx.id}">Reject</button>
-            `;
-          } else if (tx.status === 'ACCEPTED' && !hasPaid) {
-            lenderOtpHtml = `<button class="btn btn-sm btn-danger" data-action="Cancel" data-txid="${tx.id}">Cancel</button>`;
-          } else if (tx.status === 'PAID') { // Now PAID means escrow held
-            lenderOtpHtml = `
-              <button class="btn btn-sm btn-secondary" data-showotp="pickup" data-txid="${tx.id}">🔑 Show Pickup OTP</button>
-              <button class="btn btn-sm btn-danger" data-action="Cancel" data-txid="${tx.id}">Cancel</button>
-            `;
-          } else if (['ACTIVE', 'GRACE', 'LATE'].includes(tx.status)) {
-            lenderOtpHtml = `<button class="btn btn-sm btn-secondary" data-showotp="return" data-txid="${tx.id}">🔑 Show Return OTP</button>`;
-          }
-        }
+      btnOtp.disabled = true;
+      btnOtp.textContent = '...';
+      try {
+        const otpData = await api.getTransactionOtp(txId);
+        const code = type === 'pickup' ? otpData.pickupOTP : otpData.returnOTP;
+        const area = document.getElementById(`card-actions-${txId}`);
 
-        // Renter controls
-        let renterOtpHtml = '';
-        if (!isLender) {
-          if (tx.status === 'REQUESTED') {
-            renterOtpHtml = `
-              <span style="font-size:0.8rem;color:var(--color-text-muted);">Waiting for lender to accept…</span>
-              <button class="btn btn-sm btn-danger" data-action="Cancel" data-txid="${tx.id}" style="margin-left:8px;">Cancel</button>
-            `;
-          } else if (tx.status === 'ACCEPTED') {
-            renterOtpHtml = `
-              <button class="btn btn-sm btn-primary" data-action="Pay" data-txid="${tx.id}">Pay</button>
-              <button class="btn btn-sm btn-danger" data-action="Cancel" data-txid="${tx.id}">Cancel</button>
-            `;
-          } else if (tx.status === 'PAID') {
-            renterOtpHtml = `
-              <div class="otp-input-row" style="margin-bottom:8px;">
-                <input type="text" class="form-input otp-field" inputmode="numeric" maxlength="6" placeholder="Enter Pickup OTP" data-otpfield="pickup-${tx.id}" />
-                <button class="btn btn-sm btn-primary" data-verifyotp="pickup" data-txid="${tx.id}">Confirm Pickup</button>
-              </div>
-              <button class="btn btn-sm btn-danger" data-action="Cancel" data-txid="${tx.id}">Cancel Request</button>
-            `;
-          } else if (['ACTIVE', 'GRACE', 'LATE'].includes(tx.status)) {
-            renterOtpHtml = `
-              <div class="otp-input-row">
-                <input type="text" class="form-input otp-field" inputmode="numeric" maxlength="6" placeholder="Enter Return OTP" data-otpfield="return-${tx.id}" />
-                <button class="btn btn-sm btn-secondary" data-verifyotp="return" data-txid="${tx.id}">Confirm Return</button>
-              </div>
-            `;
-          }
-        }
+        const existing = area.querySelector('.otp-display');
+        if (existing) existing.remove();
 
-        return `
-          <div class="rental-card">
-            <img class="rental-card-img" src="${itemImage(itemData.images)}" alt="${escapeHtml(itemData.title || '')}" loading="lazy" />
-            <div class="rental-card-body">
-              <div class="rental-card-title">${escapeHtml(itemData.title || 'Unknown Item')}</div>
-              <div class="rental-card-meta">
-                ${tx.durationValue} ${tx.durationType === 'HOURS' ? 'hour(s)' : 'day(s)'}
-                · Total: ${formatPrice(tx.totalPaid)}
-                · ${statusBadge(tx.status)}
-              </div>
-              ${(tx.pickupLocation || tx.returnLocation) ? `
-              <div class="rental-locations">
-                <span>📍 Pickup: <strong>${locationLabel(tx.pickupLocation)}</strong></span>
-                <span>📦 Return: <strong>${locationLabel(tx.returnLocation)}</strong></span>
-              </div>` : ''}
-              <div class="rental-card-actions" id="card-actions-${tx.id}">
-                ${isLender ? lenderOtpHtml : renterOtpHtml}
-                ${showChat ? `<button class="btn btn-sm btn-secondary" data-chat="${tx.id}">💬 Chat</button>` : ''}
-              </div>
-            </div>
-          </div>
-        `;
-      }).join('');
+        const div = document.createElement('div');
+        div.className = 'otp-display';
+        div.innerHTML = `<span>🔑 ${type === 'pickup' ? 'Pickup' : 'Return'} OTP:</span><strong class="otp-code">${code}</strong><span style="font-size:0.75rem;opacity:0.6;">(share with renter)</span>`;
 
-      // Accept / Reject (lender)
-      $list.querySelectorAll('[data-action]').forEach(btn => {
-        listen(btn, 'click', async () => {
-          const action = btn.dataset.action;
-          const txId = btn.dataset.txid;
-          const handler = ACTION_HANDLERS[action];
-          if (!handler) return;
-          btn.disabled = true; btn.textContent = 'Processing...';
-          showLoading();
-          try { await handler(txId); hideLoading(); loadTab(); }
-          catch (err) { hideLoading(); showError(err.message || `Failed`); btn.disabled = false; btn.textContent = action; }
-        }, signal);
-      });
+        area.insertBefore(div, area.firstChild);
+        btnOtp.disabled = false;
+        btnOtp.textContent = btnOtp.textContent.includes('Pickup') ? '🔑 Show Pickup OTP' : '🔑 Show Return OTP';
+      } catch (err) {
+        showToast({ type: 'error', message: err.message || 'Failed to get OTP' });
+        btnOtp.disabled = false;
+        btnOtp.textContent = '🔑 Show OTP';
+      }
+    }
+  }, signal);
 
-      // Lender: Show OTP
-      $list.querySelectorAll('[data-showotp]').forEach(btn => {
-        listen(btn, 'click', async () => {
-          const type = btn.dataset.showotp; // 'pickup' or 'return'
-          const txId = btn.dataset.txid;
-          btn.disabled = true; btn.textContent = 'Loading...';
-          try {
-            const otpData = await api.getTransactionOtp(txId);
-            const code = type === 'pickup' ? otpData.pickupOTP : otpData.returnOTP;
-            const area = document.getElementById(`card-actions-${txId}`);
-            const existing = area.querySelector('.otp-display');
-            if (existing) existing.remove();
-            const div = document.createElement('div');
-            div.className = 'otp-display';
-            div.innerHTML = `<span>🔑 ${type === 'pickup' ? 'Pickup' : 'Return'} OTP:</span><strong class="otp-code">${code}</strong><span style="font-size:0.75rem;opacity:0.6;">(share with renter)</span>`;
-            area.insertBefore(div, area.firstChild);
-            btn.disabled = false; btn.textContent = btn.textContent.includes('Pickup') ? '🔑 Show Pickup OTP' : '🔑 Show Return OTP';
-          } catch (err) { hideLoading(); showError(err.message || 'Failed to get OTP'); btn.disabled = false; btn.textContent = '🔑 Show OTP'; }
-        }, signal);
-      });
+  async function loadTab() {
+    showLoading();
+    isLender = (activeTab === 'lent');
+    try {
+      const transactions = isLender ? await api.myLendings() : await api.myRentals();
+      const items = Array.isArray(transactions) ? transactions : (transactions.data || []);
 
-      // Renter: Verify OTP
-      $list.querySelectorAll('[data-verifyotp]').forEach(btn => {
-        listen(btn, 'click', async () => {
-          const type = btn.dataset.verifyotp; // 'pickup' or 'return'
-          const txId = btn.dataset.txid;
-          const fieldKey = `${type}-${txId}`;
-          const $field = $list.querySelector(`[data-otpfield="${fieldKey}"]`);
-          const otp = $field?.value?.trim();
-          if (!otp || otp.length !== 6) { showError('Enter the 6-digit OTP from the lender'); return; }
-          btn.disabled = true; btn.textContent = 'Verifying...';
-          showLoading();
-          try {
-            if (type === 'pickup') { await api.collectBorrow(txId, { otp }); }
-            else { await api.returnBorrow(txId, { otp }); }
-            hideLoading(); loadTab();
-          } catch (err) {
-            hideLoading(); showError(err.message || 'Invalid OTP');
-            btn.disabled = false; btn.textContent = type === 'pickup' ? 'Confirm Pickup' : 'Confirm Return';
-          }
-        }, signal);
-      });
+      if (items.length === 0) {
+        $list.innerHTML = `<div class="empty-state"><p>No ${isLender ? 'lent' : 'borrowed'} items yet</p></div>`;
+        return;
+      }
 
-      // Chat buttons
-      $list.querySelectorAll('[data-chat]').forEach(btn => {
-        listen(btn, 'click', () => navigate(`#/chat/${btn.dataset.chat}`), signal);
-      });
-
+      $list.innerHTML = items.map(tx => renderSingleRentalCard(tx, isLender)).join('');
     } catch (err) {
       showError(err.message || 'Failed to load rentals');
       $list.innerHTML = `<div class="empty-state"><p>Failed to load data</p></div>`;
@@ -1770,66 +1795,66 @@ function renderListItem() {
   const signal = createPageController();
 
   $app.innerHTML = `
-    <div class="page">
-      <div class="list-form">
-        <h1>List an Item</h1>
-        <form id="list-form">
-          <div class="form-group">
-            <label for="item-title">Title</label>
-            <input type="text" class="form-input" id="item-title" placeholder="e.g. Scientific Calculator" required />
-          </div>
-
-          <div class="form-group">
-            <label for="item-desc">Description</label>
-            <textarea class="form-input" id="item-desc" rows="3" placeholder="Condition, model, any notes..." required></textarea>
-          </div>
-
-          <div class="form-group">
-            <label for="item-category">Category</label>
-            <select class="form-input" id="item-category" required>
-              ${CATEGORIES.map(c => `<option value="${c}">${c.charAt(0) + c.slice(1).toLowerCase()}</option>`).join('')}
-            </select>
-          </div>
-
-          <div class="price-inputs">
+        <div class= "page" >
+        <div class="list-form">
+          <h1>List an Item</h1>
+          <form id="list-form">
             <div class="form-group">
-              <label for="item-price-hour">Price / hour (₹)</label>
-              <input type="number" class="form-input" id="item-price-hour" min="1" placeholder="Optional" />
+              <label for="item-title">Title</label>
+              <input type="text" class="form-input" id="item-title" placeholder="e.g. Scientific Calculator" required />
             </div>
+
             <div class="form-group">
-              <label for="item-price-day">Price / day (₹)</label>
-              <input type="number" class="form-input" id="item-price-day" min="1" placeholder="Optional" />
+              <label for="item-desc">Description</label>
+              <textarea class="form-input" id="item-desc" rows="3" placeholder="Condition, model, any notes..." required></textarea>
             </div>
-          </div>
 
-          <div class="form-group" id="max-hours-group" style="display:none;">
-            <label for="item-max-hours">Max hours (1–12)</label>
-            <input type="number" class="form-input" id="item-max-hours" min="1" max="12" value="12" />
-          </div>
+            <div class="form-group">
+              <label for="item-category">Category</label>
+              <select class="form-input" id="item-category" required>
+                ${CATEGORIES.map(c => `<option value="${c}">${c.charAt(0) + c.slice(1).toLowerCase()}</option>`).join('')}
+              </select>
+            </div>
 
-          <div class="form-group">
-            <label for="item-images-upload" style="display:flex; justify-content:space-between;">
-              <span>Upload Image(s) <span style="opacity:0.6">(optional, max 2)</span></span>
-            </label>
-            <input type="file" class="form-input" id="item-images-upload" accept="image/*" multiple />
-            <!-- Store loaded base64 images here -->
-            <input type="hidden" id="item-images-base64" />
-            <div id="item-images-preview" style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;"></div>
-          </div>
+            <div class="price-inputs">
+              <div class="form-group">
+                <label for="item-price-hour">Price / hour (₹)</label>
+                <input type="number" class="form-input" id="item-price-hour" min="1" placeholder="Optional" />
+              </div>
+              <div class="form-group">
+                <label for="item-price-day">Price / day (₹)</label>
+                <input type="number" class="form-input" id="item-price-day" min="1" placeholder="Optional" />
+              </div>
+            </div>
 
-          <div class="form-group" style="margin-top:16px;">
-            <label class="consent-label" style="display:flex; gap:8px;">
-              <input type="checkbox" id="item-legal-consent" required />
-              <span style="font-size:0.85rem;line-height:1.2;">I confirm this is allowed under campus rules and not prohibited items (e.g., weapons, drugs, fake IDs, keys).</span>
-            </label>
-          </div>
+            <div class="form-group" id="max-hours-group" style="display:none;">
+              <label for="item-max-hours">Max hours (1–12)</label>
+              <input type="number" class="form-input" id="item-max-hours" min="1" max="12" value="12" />
+            </div>
 
-          <button type="submit" class="btn btn-primary btn-block">List Item</button>
-          <div id="list-msg" style="margin-top:12px; text-align:center; font-size:0.875rem;"></div>
-        </form>
-      </div>
+            <div class="form-group">
+              <label for="item-images-upload" style="display:flex; justify-content:space-between;">
+                <span>Upload Image(s) <span style="opacity:0.6">(optional, max 2)</span></span>
+              </label>
+              <input type="file" class="form-input" id="item-images-upload" accept="image/*" multiple />
+              <!-- Store loaded base64 images here -->
+              <input type="hidden" id="item-images-base64" />
+              <div id="item-images-preview" style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;"></div>
+            </div>
+
+            <div class="form-group" style="margin-top:16px;">
+              <label class="consent-label" style="display:flex; gap:8px;">
+                <input type="checkbox" id="item-legal-consent" required />
+                <span style="font-size:0.85rem;line-height:1.2;">I confirm this is allowed under campus rules and not prohibited items (e.g., weapons, drugs, fake IDs, keys).</span>
+              </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">List Item</button>
+            <div id="list-msg" style="margin-top:12px; text-align:center; font-size:0.875rem;"></div>
+          </form>
+        </div>
     </div>
-  `;
+        `;
 
   const $priceHour = document.getElementById('item-price-hour');
   const $maxHoursGroup = document.getElementById('max-hours-group');
@@ -1875,7 +1900,7 @@ function renderListItem() {
 
             // Size Guard: Reject if > 300KB (Base64 is ~1.33x original, so ~400k chars)
             if (dataUrl.length > 400000) {
-              throw new Error(`Image "${file.name}" is too large even after compression. Try a smaller photo.`);
+              throw new Error(`Image "${file.name}" is too large even after compression.Try a smaller photo.`);
             }
 
             // Cleanup
@@ -1948,11 +1973,11 @@ function renderListItem() {
       await api.createItem(data);
       hideLoading();
       $app.innerHTML = `
-        <div class="page empty-state">
+        <div class="page empty-state" >
           <p>✓ Your item has been listed!</p>
           <a href="#/browse" class="btn btn-secondary" style="margin-top:12px;">Browse Items</a>
         </div>
-      `;
+        `;
     } catch (err) {
       hideLoading();
       $msg.textContent = err.message || 'Failed to list item';
@@ -1965,7 +1990,7 @@ function renderListItem() {
 
 function renderTerms() {
   $app.innerHTML = `
-    <div class="page legal-page">
+        <div class="page legal-page" >
       <h1>Terms & Conditions</h1>
 
       <p>LendIT is a platform that enables students to lend and borrow items within their campus community.</p>
@@ -1980,15 +2005,15 @@ function renderTerms() {
 
       <p>LendIT reserves the right to suspend or terminate accounts for misuse, abuse, or policy violations.</p>
     </div>
-    ${footerHtml()}
-  `;
+        ${footerHtml()}
+      `;
 }
 
 // ─── Page: Privacy Policy ────────────────────────────────────
 
 function renderPrivacy() {
   $app.innerHTML = `
-    <div class="page legal-page">
+        <div class="page legal-page" >
       <h1>Privacy Policy</h1>
 
       <p>LendIT collects basic account information such as name, email, college, and transaction history to operate the platform.</p>
@@ -1999,8 +2024,8 @@ function renderPrivacy() {
 
       <p>Cookies are used strictly for authentication and session management.</p>
     </div>
-    ${footerHtml()}
-  `;
+        ${footerHtml()}
+      `;
 }
 
 // ─── Page: Conversations List ────────────────────────────────
@@ -2014,90 +2039,75 @@ async function renderChatList() {
   updateChatBadges();
 
   $app.innerHTML = `
-    <div class="page">
+        <div class="page" >
       <h1 style="font-size:1.25rem; font-weight:700; margin-bottom:20px;">💬 Chats</h1>
       <div id="chat-list-container">
         <div class="empty-state"><p>Loading conversations...</p></div>
       </div>
     </div>
-    ${footerHtml()}
-  `;
+        ${footerHtml()}
+      `;
 
   const $container = document.getElementById('chat-list-container');
-  const CHAT_STATUSES = ['ACCEPTED', 'PAID', 'ACTIVE', 'GRACE', 'LATE'];
 
   try {
     showLoading();
-    const [rentals, lendings] = await Promise.all([
-      api.myRentals(),
-      api.myLendings(),
-    ]);
+    const chats = await api.myChats();
+    const me = state.user;
 
-    const rentalItems = (Array.isArray(rentals) ? rentals : rentals.data || [])
-      .filter(tx => CHAT_STATUSES.includes(tx.status))
-      .map(tx => ({ ...tx, _role: 'renter' }));
-
-    const lendingItems = (Array.isArray(lendings) ? lendings : lendings.data || [])
-      .filter(tx => CHAT_STATUSES.includes(tx.status))
-      .map(tx => ({ ...tx, _role: 'lender' }));
-
-    // Sort by urgency: ACTIVE > PAID > ACCEPTED > GRACE/LATE
-    const STATUS_PRIORITY = { ACTIVE: 0, PAID: 1, ACCEPTED: 2, GRACE: 3, LATE: 4 };
-    const conversations = [...rentalItems, ...lendingItems]
-      .sort((a, b) => {
-        const pa = STATUS_PRIORITY[a.status] ?? 99;
-        const pb = STATUS_PRIORITY[b.status] ?? 99;
-        if (pa !== pb) return pa - pb;
-        return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
-      });
+    const conversations = (Array.isArray(chats) ? chats : [])
+      .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
 
     if (conversations.length === 0) {
       $container.innerHTML = `
-        <div class="empty-state">
+        <div class="empty-state" >
           <p>No active conversations</p>
           <p style="font-size:0.85rem; color:var(--color-text-muted); margin-top:8px;">
-            Chats appear when you have an active rental.
+            Chats appear when you request to borrow an item or someone requests yours.
             <a href="#/browse" style="color:var(--color-purple);">Browse items →</a>
           </p>
         </div>
-      `;
+        `;
       return;
     }
 
     $container.innerHTML = `
-      <div class="chat-list">
-        ${conversations.map(tx => {
-      const item = tx.item || {};
-      const otherName = tx._role === 'renter'
-        ? (item.owner?.name || tx.lender?.name || 'Lender')
-        : (tx.renter?.name || 'Renter');
+        <div class="chat-list" >
+          ${conversations.map(chat => {
+      const item = chat.item || {};
+      const isRenter = chat.renterId === me.id;
+      const otherUser = isRenter ? chat.lender : chat.renter;
+      const otherName = otherUser?.name || 'User';
       const initial = (otherName.charAt(0) || '?').toUpperCase();
-      const timeAgo = formatTimeAgo(tx.updatedAt || tx.createdAt);
+      const timeAgo = formatTimeAgo(chat.updatedAt || chat.createdAt);
+
+      const lastMessageText = chat.lastMessage ? chat.lastMessage.content : 'Started a conversation';
 
       return `
-            <div class="chat-list-item" data-txid="${tx.id}">
+            <div class="chat-list-item" data-chatid="${chat.id}">
               <div class="chat-list-avatar">${initial}</div>
               <div class="chat-list-content">
                 <div class="chat-list-name">${escapeHtml(otherName)}</div>
-                <div class="chat-list-sub">${escapeHtml(item.title || 'Item')} · ${statusBadge(tx.status)}</div>
+                <div class="chat-list-sub" style="font-weight:400; opacity:0.8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(item.title || 'Item')}: ${escapeHtml(lastMessageText)}</div>
               </div>
               <div class="chat-list-meta">
                 <div class="chat-list-time">${timeAgo}</div>
               </div>
             </div>
           `;
-    }).join('')}
+    }).join('')
+      }
       </div>
-    `;
+        `;
 
     // Click handlers
-    $container.querySelectorAll('.chat-list-item[data-txid]').forEach(el => {
-      listen(el, 'click', () => navigate(`#/chat/${el.dataset.txid}`), signal);
+    $container.querySelectorAll('.chat-list-item[data-chatid]').forEach(el => {
+      listen(el, 'click', () => navigate(`# / chat / ${el.dataset.chatid} `), signal);
     });
 
   } catch (err) {
     showError(err.message || 'Failed to load conversations');
-    $container.innerHTML = `<div class="empty-state"><p>Failed to load conversations</p></div>`;
+    $container.innerHTML = `<div class="empty-state" > <p>Failed to load conversations</p></div> `;
   } finally {
     hideLoading();
   }
@@ -2123,23 +2133,23 @@ async function renderCheckout(transactionId) {
   const signal = createPageController();
 
   $app.innerHTML = `
-    <div class="page">
-      <div id="checkout-container" style="min-height:400px;">
-        <div class="checkout-shimmer-wrapper" style="text-align:left; max-width:500px; margin:0 auto; padding:20px;">
-           <div style="height:32px; width:60%; background:var(--color-surface); border-radius:8px; margin-bottom:32px; animation: pulse 1.5s infinite ease-in-out;"></div>
-           <div style="height:44px; width:140px; background:var(--color-surface); border-radius:8px; margin-bottom:20px; animation: pulse 1.5s infinite ease-in-out;"></div>
-           <div style="height:124px; background:var(--color-surface); border-radius:16px; margin-bottom:24px; animation: pulse 1.5s infinite ease-in-out;"></div>
-           <div style="height:254px; background:var(--color-surface); border-radius:16px; margin-bottom:32px; animation: pulse 1.5s infinite ease-in-out;"></div>
-           <div style="height:60px; background:var(--color-surface); border-radius:16px; animation: pulse 1.5s infinite ease-in-out;"></div>
-           <p style="text-align:center; margin-top:24px; color:var(--color-text-muted); font-weight:500;">Loading order summary...</p>
-        </div>
-      </div>
+        <div class="page" >
+          <div id="checkout-container" style="min-height:400px;">
+            <div class="checkout-shimmer-wrapper" style="text-align:left; max-width:500px; margin:0 auto; padding:20px;">
+              <div style="height:32px; width:60%; background:var(--color-surface); border-radius:8px; margin-bottom:32px; animation: pulse 1.5s infinite ease-in-out;"></div>
+              <div style="height:44px; width:140px; background:var(--color-surface); border-radius:8px; margin-bottom:20px; animation: pulse 1.5s infinite ease-in-out;"></div>
+              <div style="height:124px; background:var(--color-surface); border-radius:16px; margin-bottom:24px; animation: pulse 1.5s infinite ease-in-out;"></div>
+              <div style="height:254px; background:var(--color-surface); border-radius:16px; margin-bottom:32px; animation: pulse 1.5s infinite ease-in-out;"></div>
+              <div style="height:60px; background:var(--color-surface); border-radius:16px; animation: pulse 1.5s infinite ease-in-out;"></div>
+              <p style="text-align:center; margin-top:24px; color:var(--color-text-muted); font-weight:500;">Loading order summary...</p>
+            </div>
+          </div>
     </div>
-    <style>
-      @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
-    </style>
+        <style>
+          @keyframes pulse {0 % { opacity: 0.6; } 50% {opacity: 1; } 100% {opacity: 0.6; } }
+        </style>
     ${footerHtml()}
-  `;
+      `;
 
   const $container = document.getElementById('checkout-container');
 
@@ -2161,7 +2171,7 @@ async function renderCheckout(transactionId) {
     }
 
     if (tx.status !== 'PAYMENT_PENDING' && tx.status !== 'PAID') {
-      window.location.hash = `#/chat/${tx.id}`;
+      window.location.hash = `# / chat / ${tx.id} `;
       return;
     }
 
@@ -2172,20 +2182,20 @@ async function renderCheckout(transactionId) {
     // Activity Signal
     const lender = tx.lender || {};
     const lastSeen = lender.lastSeenAt ? new Date(lender.lastSeenAt) : null;
-    const isRecent = lastSeen && (new Date() - lastSeen < 10 * 60 * 1000);
+    const isRecent = lastSeen && (new Date() - lastSeen < 5 * 60 * 1000);
     const activityHtml = isRecent
-      ? `<div style="color:#16a34a; font-size:0.85rem; font-weight:600; display:flex; align-items:center; gap:6px; margin-bottom:20px; background:#f0fdf4; padding:8px 12px; border-radius:8px; width:fit-content;">
-           <span style="height:8px; width:8px; background:#16a34a; border-radius:50%; display:inline-block; animation: pulse 1s infinite alternate;"></span>
+      ? `<div style = "color:#16a34a; font-size:0.85rem; font-weight:600; display:flex; align-items:center; gap:6px; margin-bottom:20px; background:#f0fdf4; padding:8px 12px; border-radius:8px; width:fit-content;" >
+        <span style="height:8px; width:8px; background:#16a34a; border-radius:50%; display:inline-block; animation: pulse 1s infinite alternate;"></span>
            🟢 Active recently
-         </div>`
-      : `<div style="color:var(--color-text-muted); font-size:0.85rem; font-weight:500; display:flex; align-items:center; gap:6px; margin-bottom:20px; background:var(--color-surface); padding:8px 12px; border-radius:8px; width:fit-content;">
-           <span style="height:8px; width:8px; background:#94a3b8; border-radius:50%; display:inline-block;"></span>
+         </div> `
+      : `<div style = "color:var(--color-text-muted); font-size:0.85rem; font-weight:500; display:flex; align-items:center; gap:6px; margin-bottom:20px; background:var(--color-surface); padding:8px 12px; border-radius:8px; width:fit-content;" >
+        <span style="height:8px; width:8px; background:#94a3b8; border-radius:50%; display:inline-block;"></span>
            ⏱ Response time may vary
-         </div>`;
+         </div> `;
 
     $container.innerHTML = `
-      <div class="checkout-page" style="text-align:left; max-width:500px; margin:0 auto; padding:20px;">
-        <h1 style="font-size:1.5rem; font-weight:800; margin-bottom:24px;">📦 Order Summary</h1>
+        <div class="checkout-page" style = "text-align:left; max-width:500px; margin:0 auto; padding:20px;" >
+          <h1 style="font-size:1.5rem; font-weight:800; margin-bottom:24px;">📦 Order Summary</h1>
         
         ${activityHtml}
 
@@ -2241,7 +2251,7 @@ async function renderCheckout(transactionId) {
         <script>
           // Note: This script block is a conceptual aid, actual logic is handled by the render function below
         </script>
-    `;
+      `;
 
     const $btnPay = document.getElementById('confirm-pay');
     const $timerDisplay = document.getElementById('countdown-timer');
@@ -2261,7 +2271,7 @@ async function renderCheckout(transactionId) {
             returnDate: tx.requestedEndTime,
             originalTxId: tx.id
           }));
-          window.location.hash = `#/item/${tx.itemId || tx.item?.id}`;
+          window.location.hash = `# / item / ${tx.itemId || tx.item?.id} `;
         };
         if ($timerDisplay) $timerDisplay.textContent = '00:00';
         clearInterval(timerInterval);
@@ -2277,7 +2287,7 @@ async function renderCheckout(transactionId) {
 
       const mins = Math.floor(remainingMs / 60000);
       const secs = Math.floor((remainingMs % 60000) / 1000);
-      const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} `;
 
       // Update timer display with color logic
       if ($timerDisplay) {
@@ -2296,7 +2306,7 @@ async function renderCheckout(transactionId) {
 
       // Update button with inline timer
       if (!$btnPay.disabled && !$btnPay.innerHTML.includes('Processing')) {
-        $btnPay.innerHTML = `💳 Confirm & Pay (${timeStr})`;
+        $btnPay.innerHTML = `💳 Confirm & Pay(${timeStr})`;
       }
     }
 
@@ -2329,26 +2339,26 @@ async function renderCheckout(transactionId) {
           $btnPay.style.background = 'var(--color-text-main)';
           $btnPay.innerHTML = '🔄 Session expired — Rebook';
           $btnPay.onclick = () => {
-            window.location.hash = `#/item/${tx.itemId || tx.item?.id}`;
+            window.location.hash = `# / item / ${tx.itemId || tx.item?.id} `;
           };
           if ($timerDisplay) $timerDisplay.textContent = '00:00';
           showError('This checkout was cancelled. Please rebook.');
         } else if (fresh.paymentStatus === 'PAID') {
           clearInterval(statusPoll);
           clearInterval(timerInterval);
-          showToast('Payment Successful! 🎉', 'Redirecting to chat...', 'success');
-          window.location.hash = `#/chat/${tx.id}`;
+          showToast({ type: 'success', title: 'Payment Successful! 🎉', message: 'Redirecting to chat...' });
+          window.location.hash = `# / chat / ${tx.id} `;
         }
       } catch { /* network hiccup — retry next tick */ }
     }, 5000);
     signal.addEventListener('abort', () => clearInterval(statusPoll));
 
     $container.innerHTML += `
-        <p style="text-align:center; font-size:0.85rem; color:var(--color-text-muted); margin:24px 0 32px;">
+        <style = "text-align:center; font-size:0.85rem; color:var(--color-text-muted); margin:24px 0 32px;" >
           Money remains in secure escrow until you collect the item.
         </p>
       </div>
-    `;
+        `;
 
     // Handle Sticky Footer for mobile
     if (window.innerWidth < 640) {
@@ -2376,8 +2386,8 @@ async function renderCheckout(transactionId) {
         $btnPay.disabled = true;
         $btnPay.innerHTML = '⏳ Processing...';
         await api.processPayment(tx.id);
-        showToast('Payment Successful! 🎉', 'Your rental is now active. You can chat with the lender.', 'success');
-        window.location.hash = `#/chat/${tx.id}`;
+        showToast({ type: 'success', title: 'Payment Successful! 🎉', message: 'Your rental is now active. You can chat with the lender.' });
+        window.location.hash = `# / chat / ${tx.id} `;
       } catch (e) {
         $btnPay.dataset.loading = '0';
         $btnPay.disabled = false;
@@ -2388,22 +2398,23 @@ async function renderCheckout(transactionId) {
 
   } catch (err) {
     hideLoading();
-    $container.innerHTML = `<div class="empty-state"><p>Error loading checkout. Please try again.</p><a href="#/rentals" class="btn btn-secondary">My Rentals</a></div>`;
+    $container.innerHTML = `<div class="empty-state" ><p>Error loading checkout. Please try again.</p><a href="#/rentals" class="btn btn-secondary">My Rentals</a></div> `;
   }
 }
 
 // ─── Page: Chat ──────────────────────────────────────────────
 
-function renderChat(transactionId) {
+function renderChat(chatId) {
   if (!requireAuth()) return;
-  if (!transactionId) { navigate('#/rentals'); return; }
+  if (!chatId) { navigate('#/chats'); return; }
 
   const signal = createPageController();
   let socket = null;
-  let txData = null; // cached transaction
+  let chatData = null; // cached decoupled chat
+  let txData = null; // cached native transaction if exists
 
   $app.innerHTML = `
-    <div class="page" style="display:flex;flex-direction:column;height:calc(100vh - 80px);">
+        <div class="page" style = "display:flex;flex-direction:column;height:calc(100vh - 80px);" >
       <div class="chat-header-improved" id="chat-header">
         <a href="#/chats" class="chat-back">←</a>
         <div class="chat-header-avatar" id="chat-avatar">?</div>
@@ -2422,15 +2433,46 @@ function renderChat(transactionId) {
         <button class="btn btn-primary" id="chat-send">Send</button>
       </div>
     </div>
-  `;
+        `;
 
   const $window = document.getElementById('chat-window');
   const $input = document.getElementById('chat-input');
   const $send = document.getElementById('chat-send');
   const $actionBar = document.getElementById('chat-action-bar');
 
+  // init chat payload
+  api.getChatDetails(chatId).then(data => {
+    chatData = data;
+    txData = data.transaction || null;
+
+    const partnerName = chatData.partner?.name || 'User';
+    document.getElementById('chat-peer-name').textContent = partnerName;
+    document.getElementById('chat-avatar').textContent = (partnerName.charAt(0) || '?').toUpperCase();
+    document.getElementById('chat-item-name').textContent = chatData.item?.title || 'Item';
+
+    if (txData) {
+      renderActionBar(txData);
+    } else {
+      // Contextual Banner for Free Chat if NO transaction
+      $actionBar.innerHTML = `
+        <div style = "padding:16px; background:var(--color-surface); text-align:center; border-bottom:1px solid var(--color-border);" >
+           <div style="font-size:0.9rem; margin-bottom:12px; color:var(--color-text-muted);">
+             Chat freely! Contact info is protected until a booking is verified.
+           </div>
+           <button class="btn btn-primary" onclick="window.location.hash='#/item/${chatData.chat.itemId}'" style="padding:10px 24px; border-radius:18px; font-weight:700;">Request to Borrow</button>
+         </div> `;
+      $input.disabled = false;
+      $input.placeholder = "Type a message...";
+      $send.style.display = 'block';
+    }
+  }).catch(err => {
+    showError('Could not load chat');
+    navigate('#/chats');
+  });
+
   // ─── Transaction action bar ──────────────────────────────────
   function renderActionBar(tx) {
+    if (!tx) return;
     const isRenter = tx.renterId === state.user?.id;
     const isLender = tx.lenderId === state.user?.id;
     const { status, escrowHeld, totalPaid, pickupLocation, returnLocation } = tx;
@@ -2439,8 +2481,8 @@ function renderChat(transactionId) {
 
     if (isRenter && status === 'ACCEPTED') {
       actionHtml = `
-        <div class="chat-action-row" style="flex-direction:column; padding:20px 16px;">
-          <!-- Checkout card -->
+        <div class="chat-action-row" style = "flex-direction:column; padding:20px 16px;" >
+          < !--Checkout card-- >
           <div style="background:#fff; border-radius:16px; padding:20px; box-shadow:0 1px 4px rgba(0,0,0,0.06); width:100%;">
             <div style="font-size:1.15rem; font-weight:800; margin-bottom:20px;">💰 Price Breakdown</div>
 
@@ -2482,10 +2524,10 @@ function renderChat(transactionId) {
             <div style="font-size:0.8rem; color:var(--color-text-muted); text-align:center; margin-top:10px;">⏳ Safe checkout with escrow</div>
           </div>
 
-          <!-- Green Pay CTA -->
-          <button
-            id="btn-pay-chat"
-            style="
+          <!--Green Pay CTA-- >
+        <button
+          id="btn-pay-chat"
+          style="
               display:block; width:100%; min-height:52px;
               background:var(--color-cta); color:#fff;
               font-size:1.1rem; font-weight:700;
@@ -2495,53 +2537,53 @@ function renderChat(transactionId) {
               margin-top:16px;
               transition:background 0.15s;
             "
-            onmouseover="this.style.background='var(--color-cta-hover)'"
-            onmouseout="this.style.background='var(--color-cta)'"
-          >Pay</button>
-        </div>`;
+          onmouseover="this.style.background='var(--color-cta-hover)'"
+          onmouseout="this.style.background='var(--color-cta)'"
+        >Pay</button>
+        </div> `;
 
     } else if (isRenter && status === 'PAID') {
       actionHtml = `
-        <div class="chat-action-row">
+        <div class="chat-action-row" >
           <div class="chat-action-label">✅ Payment done! Get the 6-digit Pickup OTP from the Lender.</div>
           <button class="btn btn-secondary" id="btn-collect-chat">📦 Enter Pickup OTP</button>
-        </div>`;
+        </div> `;
     } else if (isRenter && (status === 'ACTIVE' || status === 'GRACE')) {
       actionHtml = `
-        <div class="chat-action-row">
+        <div class="chat-action-row" >
           <div class="chat-action-label">⏱ Item is with you. Get the 6-digit Return OTP from the Lender when returning.</div>
           <button class="btn btn-secondary" id="btn-return-chat">✅ Enter Return OTP</button>
-        </div>`;
+        </div> `;
     } else if (isLender && status === 'PAID') {
       actionHtml = `
-        <div class="chat-action-row">
+        <div class="chat-action-row" >
           <div>
             <div class="chat-action-label">✅ Paid! Share this Pickup OTP with the renter:</div>
             <div style="font-size:24px; font-weight:bold; letter-spacing:4px; margin-top:8px;">${tx.otp?.pickupOTP || '------'}</div>
           </div>
-        </div>`;
+        </div> `;
     } else if (isLender && (status === 'ACTIVE' || status === 'GRACE')) {
       actionHtml = `
-        <div class="chat-action-row">
+        <div class="chat-action-row" >
           <div>
             <div class="chat-action-label">⏱ Item is rented out. Share this Return OTP when they give it back:</div>
             <div style="font-size:24px; font-weight:bold; letter-spacing:4px; margin-top:8px;">${tx.otp?.returnOTP || '------'}</div>
           </div>
-        </div>`;
+        </div> `;
     } else if (status === 'RETURNED') {
-      actionHtml = `<div class="chat-action-row"><div class="chat-action-label">✅ Rental complete. Lender has been paid.</div></div>`;
+      actionHtml = `<div class="chat-action-row" > <div class="chat-action-label">✅ Rental complete. Lender has been paid.</div></div> `;
     } else if (status === 'ACTIVE') {
-      actionHtml = `<div class="chat-action-row"><div class="chat-action-label">⏱ Item is out on rental.</div></div>`;
+      actionHtml = `<div class="chat-action-row" > <div class="chat-action-label">⏱ Item is out on rental.</div></div> `;
     }
 
     const locHtml = (pickupLocation || returnLocation) ? `
-      <div class="chat-locations">
+        <div class="chat-locations" >
         📍 Pickup: <strong>${locationLabel(pickupLocation)}</strong>
-        &nbsp;·&nbsp;
+        & nbsp;·& nbsp;
         📦 Return: <strong>${locationLabel(returnLocation)}</strong>
-      </div>` : '';
+      </div> ` : '';
 
-    $actionBar.innerHTML = `<div class="chat-action-bar">${locHtml}${actionHtml}</div>`;
+    $actionBar.innerHTML = `<div class="chat-action-bar" > ${locHtml}${actionHtml}</div> `;
 
     // Input Locking and Banners based on Status
     const isLocked = status === 'REQUESTED' || status === 'ACCEPTED';
@@ -2553,7 +2595,7 @@ function renderChat(transactionId) {
       // Show predefined quick-ask buttons ONLY to the renter
       if (isRenter) {
         const predefinedHtml = `
-          <div style="padding:12px 8px 4px; display:flex; flex-direction:column; gap:10px; width:100%;">
+        <div style = "padding:12px 8px 4px; display:flex; flex-direction:column; gap:10px; width:100%;" >
             <button
               class="btn predefined-btn"
               data-msg="Is this available?"
@@ -2583,7 +2625,7 @@ function renderChat(transactionId) {
                 createdAt: new Date().toISOString()
               };
               appendMessage(tempMsg, true);
-              socket.emit('send-message', { transactionId, content: btn.dataset.msg }, (response) => {
+              socket.emit('send-message', { chatId, content: btn.dataset.msg }, (response) => {
                 if (response && response.error) showError(response.error);
               });
             }, signal);
@@ -2594,10 +2636,10 @@ function renderChat(transactionId) {
         const inputBar = document.querySelector('.chat-input-bar');
         if (inputBar) {
           inputBar.innerHTML = `
-            <div style="padding:16px; text-align:center; color:var(--color-text-muted); font-size:0.9rem; font-weight:500;">
+        <div style = "padding:16px; text-align:center; color:var(--color-text-muted); font-size:0.9rem; font-weight:500;" >
               ⏳ Waiting for renter to complete payment
             </div>
-          `;
+        `;
           inputBar.style.flexDirection = 'column';
         }
       }
@@ -2622,7 +2664,7 @@ function renderChat(transactionId) {
     if ($pay) {
       listen($pay, 'click', () => {
         // Always redirect to the proper checkout flow — never call payBorrow directly from chat
-        window.location.hash = `#/checkout/${transactionId}`;
+        window.location.hash = `# / checkout / ${txData.id} `;
       }, signal);
     }
 
@@ -2634,9 +2676,11 @@ function renderChat(transactionId) {
         $collect.disabled = true; $collect.textContent = 'Processing...';
         showLoading();
         try {
-          await api.collectBorrow(transactionId, { otp });
+          await api.collectBorrow(txData.id, { otp });
           hideLoading();
-          txData = await api.getTransaction(transactionId);
+          // Soft-refresh the whole chat view to keep it clean
+          const fresh = await api.getChatDetails(chatId);
+          txData = fresh.transaction;
           renderActionBar(txData);
         } catch (err) {
           hideLoading();
@@ -2654,9 +2698,10 @@ function renderChat(transactionId) {
         $return.disabled = true; $return.textContent = 'Processing...';
         showLoading();
         try {
-          await api.returnBorrow(transactionId, { otp });
+          await api.returnBorrow(txData.id, { otp });
           hideLoading();
-          txData = await api.getTransaction(transactionId);
+          const fresh = await api.getChatDetails(chatId);
+          txData = fresh.transaction;
           renderActionBar(txData);
         } catch (err) {
           hideLoading();
@@ -2682,19 +2727,19 @@ function renderChat(transactionId) {
     const content = escapeHtml(msg.content);
     const time = new Date(msg.sentAt || msg.createdAt || Date.now()).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     const div = document.createElement('div');
-    div.className = `chat-bubble ${isMine ? 'mine' : 'theirs'}${optimistic ? ' optimistic-bubble' : ''}`;
+    div.className = `chat - bubble ${isMine ? 'mine' : 'theirs'}${optimistic ? ' optimistic-bubble' : ''} `;
     div.innerHTML = `
-      <div class="bubble-name">${isMine ? 'You' : name}</div>
+        <div class="bubble-name" > ${isMine ? 'You' : name}</div>
       <div class="bubble-text">${content}</div>
       <div class="bubble-time">${time}${optimistic ? ' ⏳' : (isMine ? ' ✓' : '')}</div>
-    `;
+      `;
     $window.appendChild(div);
     $window.scrollTop = $window.scrollHeight;
 
     // Browser notification for incoming messages when tab is hidden
     if (!isMine && document.hidden && Notification.permission === 'granted') {
       new Notification('LendIT — New message', {
-        body: `${name}: ${msg.content.slice(0, 80)}`,
+        body: `${name}: ${msg.content.slice(0, 80)} `,
         icon: '/assets/LendIT-trans.png',
       });
     }
@@ -2714,7 +2759,7 @@ function renderChat(transactionId) {
 
     socket.on('connect', () => {
       $window.innerHTML = '';
-      socket.emit('join-chat', { transactionId });
+      socket.emit('join-chat', { chatId });
     });
 
     socket.on('chat-history', ({ messages }) => {
@@ -2766,7 +2811,7 @@ function renderChat(transactionId) {
     appendMessage(tempMsg, true); // Pass true for optimistic rendering
     $input.value = '';
 
-    socket.emit('send-message', { transactionId, content }, (response) => {
+    socket.emit('send-message', { chatId, content }, (response) => {
       if (response && response.error) {
         showError(response.error);
       }
