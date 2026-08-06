@@ -2180,7 +2180,7 @@ async function renderCheckout(transactionId) {
     }
 
     if (tx.status !== 'PAYMENT_PENDING' && tx.status !== 'PAID') {
-      window.location.hash = `# / chat / ${tx.id} `;
+      window.location.hash = `#/chat/${tx.id}`;
       return;
     }
 
@@ -2280,7 +2280,7 @@ async function renderCheckout(transactionId) {
             returnDate: tx.requestedEndTime,
             originalTxId: tx.id
           }));
-          window.location.hash = `# / item / ${tx.itemId || tx.item?.id} `;
+          window.location.hash = `#/item/${tx.itemId || tx.item?.id}`;
         };
         if ($timerDisplay) $timerDisplay.textContent = '00:00';
         clearInterval(timerInterval);
