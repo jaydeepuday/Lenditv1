@@ -549,7 +549,7 @@ select.form-input {
     font-size: 0.875rem;
     font-weight: 600;
     text-align: center;
-    z-index: 1000;
+    z-index: 1100;
     box-shadow: var(--shadow-lg);
     transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     display: block;
