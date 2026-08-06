@@ -1618,7 +1618,7 @@ function renderSingleRentalCard(tx, isLender) {
         </div>` : ''}
         <div class="rental-card-actions" id="card-actions-${tx.id}">
           ${isLender ? lenderOtpHtml : renterOtpHtml}
-          ${showChat ? `<button class="btn btn-sm btn-secondary" data-chat="${tx.id}">💬 Chat</button>` : ''}
+          ${showChat ? `<button class="btn btn-sm btn-secondary" data-chatitem="${tx.item?.id || tx.itemId}">💬 Chat</button>` : ''}
         </div>
       </div>
     </div>
@@ -1668,9 +1668,18 @@ async function renderRentals() {
   // Event Delegation for all list interactions!
   listen($list, 'click', async (e) => {
     // Chat Button -> Navigate
-    const btnChat = e.target.closest('[data-chat]');
+    const btnChat = e.target.closest('[data-chatitem]');
     if (btnChat) {
-      navigate(`#/chat/${btnChat.dataset.chat}`);
+      btnChat.disabled = true;
+      btnChat.textContent = 'Opening...';
+      try {
+        const chat = await api.createChat(btnChat.dataset.chatitem);
+        navigate(`#/chat/${chat.id}`);
+      } catch (err) {
+        showError(err.message || 'Could not open chat');
+        btnChat.disabled = false;
+        btnChat.textContent = '💬 Chat';
+      }
       return;
     }
 
@@ -2347,7 +2356,7 @@ async function renderCheckout(transactionId) {
           clearInterval(statusPoll);
           clearInterval(timerInterval);
           showToast({ type: 'success', title: 'Payment Successful! 🎉', message: 'Redirecting to chat...' });
-          window.location.hash = `#/chat/${tx.id}`;
+          try { const c = await api.createChat(tx.itemId || tx.item?.id); window.location.hash = `#/chat/${c.id}`; } catch { window.location.hash = '#/rentals'; }
         }
       } catch { /* network hiccup — retry next tick */ }
     }, 5000);
@@ -2386,7 +2395,7 @@ async function renderCheckout(transactionId) {
         $btnPay.innerHTML = '⏳ Processing...';
         await api.processPayment(tx.id);
         showToast({ type: 'success', title: 'Payment Successful! 🎉', message: 'Your rental is now active. You can chat with the lender.' });
-        window.location.hash = `#/chat/${tx.id}`;
+        try { const c = await api.createChat(tx.itemId || tx.item?.id); window.location.hash = `#/chat/${c.id}`; } catch { window.location.hash = '#/rentals'; }
       } catch (e) {
         $btnPay.dataset.loading = '0';
         $btnPay.disabled = false;
@@ -2663,7 +2672,7 @@ function renderChat(chatId) {
     if ($pay) {
       listen($pay, 'click', () => {
         // Always redirect to the proper checkout flow — never call payBorrow directly from chat
-        window.location.hash = `# / checkout / ${txData.id} `;
+        window.location.hash = `#/checkout/${txData.id}`;
       }, signal);
     }
 
