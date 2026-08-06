@@ -2339,7 +2339,7 @@ async function renderCheckout(transactionId) {
           $btnPay.style.background = 'var(--color-text-main)';
           $btnPay.innerHTML = '🔄 Session expired — Rebook';
           $btnPay.onclick = () => {
-            window.location.hash = `# / item / ${tx.itemId || tx.item?.id} `;
+            window.location.hash = `#/item/${tx.itemId || tx.item?.id}`;
           };
           if ($timerDisplay) $timerDisplay.textContent = '00:00';
           showError('This checkout was cancelled. Please rebook.');
@@ -2347,7 +2347,7 @@ async function renderCheckout(transactionId) {
           clearInterval(statusPoll);
           clearInterval(timerInterval);
           showToast({ type: 'success', title: 'Payment Successful! 🎉', message: 'Redirecting to chat...' });
-          window.location.hash = `# / chat / ${tx.id} `;
+          window.location.hash = `#/chat/${tx.id}`;
         }
       } catch { /* network hiccup — retry next tick */ }
     }, 5000);
@@ -2386,7 +2386,7 @@ async function renderCheckout(transactionId) {
         $btnPay.innerHTML = '⏳ Processing...';
         await api.processPayment(tx.id);
         showToast({ type: 'success', title: 'Payment Successful! 🎉', message: 'Your rental is now active. You can chat with the lender.' });
-        window.location.hash = `# / chat / ${tx.id} `;
+        window.location.hash = `#/chat/${tx.id}`;
       } catch (e) {
         $btnPay.dataset.loading = '0';
         $btnPay.disabled = false;
