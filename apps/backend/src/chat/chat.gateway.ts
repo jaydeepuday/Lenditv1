@@ -171,11 +171,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
 
         // Broadcast to EVERYONE in the room (including sender, so they see it instantly in UI)
-        this.server.to(`chat:${chat.id}`).emit('new-message', message);
+        client.nsp.to(`chat:${chat.id}`).emit('new-message', message);
 
         // Send real-time UI notification to the OTHER user's personal room
         const recipientId = chat.renterId === client.userId! ? chat.lenderId : chat.renterId;
-        this.server.to(`user:${recipientId}`).emit('notification', {
+        client.nsp.to(`user:${recipientId}`).emit('notification', {
             title: `New message from ${message.sender.name}`,
             body: data.content === "⚠️ For your safety, contact information can only be shared after a booking is confirmed." ? "(System Warning)" : message.content,
             link: `#/chat/${chat.id}` // link is updated to use chatId
