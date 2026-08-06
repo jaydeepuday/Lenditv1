@@ -44,7 +44,7 @@ const LENDER_ACTIONS = {
 const ACTION_HANDLERS = {
   Accept: (id) => api.respondBorrow(id, { action: 'ACCEPTED' }),
   Reject: (id) => api.respondBorrow(id, { action: 'REJECTED' }),
-  Pay: (id) => api.payBorrow(id),
+  Pay: (id) => { window.location.hash = `#/checkout/${id}`; return Promise.resolve(); },
   Collect: (id) => api.collectBorrow(id),
   Return: (id) => api.returnBorrow(id),
   Cancel: (id) => api.cancelBorrow(id),
