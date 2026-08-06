@@ -2353,12 +2353,11 @@ async function renderCheckout(transactionId) {
     }, 5000);
     signal.addEventListener('abort', () => clearInterval(statusPoll));
 
-    $container.innerHTML += `
-        <style = "text-align:center; font-size:0.85rem; color:var(--color-text-muted); margin:24px 0 32px;" >
+    $container.insertAdjacentHTML('beforeend', `
+        <p style="text-align:center; font-size:0.85rem; color:var(--color-text-muted); margin:24px 0 32px;">
           Money remains in secure escrow until you collect the item.
         </p>
-      </div>
-        `;
+        `);
 
     // Handle Sticky Footer for mobile
     if (window.innerWidth < 640) {
