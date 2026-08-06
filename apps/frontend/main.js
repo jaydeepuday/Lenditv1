@@ -144,6 +144,8 @@ window.addEventListener('scroll', () => {
 
 /** Navigate to a hash route */
 function navigate(hash) {
+  console.log("[NAVIGATE]", hash);
+  console.trace();
   window.location.hash = hash;
 }
 
@@ -2111,7 +2113,7 @@ async function renderChatList() {
 
     // Click handlers
     $container.querySelectorAll('.chat-list-item[data-chatid]').forEach(el => {
-      listen(el, 'click', () => navigate(`# / chat / ${el.dataset.chatid} `), signal);
+      listen(el, 'click', () => navigate(`#/chat/${el.dataset.chatid}`), signal);
     });
 
   } catch (err) {
