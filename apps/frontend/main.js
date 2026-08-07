@@ -1,5 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // main.js — LendIT Frontend Application
+import { io } from "https://cdn.socket.io/4.8.1/socket.io.esm.min.js";
+
 // SPA with hash-based routing. Each page has a render function
 // and uses AbortController for cleanup.
 // ─────────────────────────────────────────────────────────────
