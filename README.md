@@ -1,98 +1,118 @@
-# LendIT Monorepo
+# LendIT — Campus Lending Platform
 
-Welcome to the LendIT rental marketplace. This repository uses a clean monorepo architecture separating the backend and frontend while allowing simultaneous local development.
+> Peer-to-peer item rental marketplace for college students. Borrow & lend textbooks, electronics, sports gear and more — secured by escrow, OTP verification, and real-time chat.
 
-## Project Structure
-- `apps/backend`: NestJS + Prisma + PostgreSQL + Redis
-- `apps/frontend`: Vanilla JS/HTML SPA
+## Architecture
 
-## 1. Setup
-
-### Prerequisites
-- **Node.js**: v18+ (v24 recommended)
-- **Database**: PostgreSQL (v16+)
-- **Cache**: Redis (v7+)
-- **Package Manager**: npm
-
-### Installation
-From the project root:
-```bash
-npm install
+```
+LendITv2/
+├── apps/
+│   ├── backend/     # NestJS REST API + Socket.IO WebSocket Gateway
+│   └── frontend/    # Vanilla JS SPA (hash-based routing)
+├── docker-compose.yml
+└── package.json     # Monorepo root (concurrently)
 ```
 
-### Infrastructure (Local)
-If you have Docker installed, you can easily spin up the required PostgreSQL and Redis instances:
+| Layer | Stack |
+|---|---|
+| **Frontend** | Vanilla JavaScript, HTML5, CSS3, Socket.IO Client (ESM) |
+| **Backend** | NestJS, Prisma ORM, PostgreSQL, Redis, Socket.IO |
+| **Auth** | JWT (httpOnly cookies), Email OTP via Resend |
+| **Payments** | Wallet-based escrow with platform fee split |
+
+## Features
+
+- **Browse & List** — Search, filter by category, and list items with compressed image uploads
+- **Time-Slot Rentals** — Hourly / daily pricing with turnover conflict detection
+- **Secure Checkout** — 10-minute reservation window, wallet hold → escrow → payout pipeline
+- **OTP Verification** — 6-digit pickup and return codes prevent unauthorized handoffs
+- **Real-Time Chat** — Socket.IO namespace-based messaging with contact-info filtering
+- **Notifications** — In-app toasts, browser notifications, and email alerts
+- **Admin Dashboard** — User reports, item moderation, and system stats
+- **Concurrency Safe** — Advisory locks, row-level locking, idempotency guards
+
+## Prerequisites
+
+- **Node.js** v18+ (v24 recommended)
+- **PostgreSQL** v16+
+- **Redis** v7+
+- **npm**
+
+## Quick Start
+
+### 1. Install dependencies
+
+```bash
+npm install
+cd apps/backend && npm install
+cd ../frontend && npm install
+```
+
+### 2. Infrastructure (Docker)
+
 ```bash
 docker-compose up -d postgres redis
 ```
 
----
+### 3. Configure environment
 
-## 2. Environment Variables
-
-The backend relies on environment variables defined in `apps/backend/.env`. Copy `.env.example` to `.env` and fill in the values:
-
-```env
-# Core API Config
-NODE_ENV=development
-PORT=3001
-FRONTEND_URL=http://localhost:3000
-
-# Database & Cache
-DATABASE_URL="<PASTE_YOUR_DATABASE_CONNECTION_STRING_HERE>"
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# Authentication Security
-JWT_ACCESS_SECRET="<CREATE_A_RANDOM_SECRET_STRING_HERE>"
-JWT_REFRESH_SECRET="<CREATE_ANOTHER_RANDOM_SECRET_STRING_HERE>"
-JWT_ACCESS_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
-OTP_EXPIRY_MINUTES=5
-OTP_MAX_ATTEMPTS=3
-
-# Email Configuration (Resend)
-# Leave RESEND_API_KEY empty in dev to fallback to console-logging emails
-RESEND_API_KEY="<PASTE_YOUR_RESEND_API_KEY_HERE>"
-EMAIL_FROM="lendIT <onboarding@resend.dev>"
-
-# Marketplace Configuration
-PLATFORM_FEE_PERCENT=5
-WALLET_MIN_WITHDRAWAL=100
-```
-
-*Note: The frontend does not currently require environment variables as API routing relies on hardcoded paths designed for single-server or specific backend URLs.*
-
----
-
-## 3. Startup
-
-To run the entire application stack locally for development:
+Copy the example and fill in your values:
 
 ```bash
+cp apps/backend/.env.example apps/backend/.env
+```
+
+Required variables:
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_HOST` / `REDIS_PORT` | Redis connection |
+| `JWT_ACCESS_SECRET` | Random string for access tokens |
+| `JWT_REFRESH_SECRET` | Random string for refresh tokens |
+| `RESEND_API_KEY` | Resend email API key (optional in dev) |
+| `FRONTEND_URL` | Frontend origin for CORS |
+
+> **⚠️ Never commit `.env` files.** The `.gitignore` already excludes them.
+
+### 4. Database setup
+
+```bash
+cd apps/backend
+npx prisma db push
+```
+
+### 5. Run locally
+
+```bash
+# From project root — starts both backend (port 3001) and frontend (port 3000)
 npm run dev
 ```
 
-This single command utilizes `concurrently` to:
-1. Start the **NestJS Backend** API on `http://localhost:3001` (in watch mode)
-2. Start the **Vanilla Frontend** static server on `http://localhost:3000`
+## Deployment
 
-*Important: During local development, the frontend relies on cross-origin requests to port 3001. Ensure CORS is correctly configured in `main.ts` (currently enabled).*
+| Component | Recommended | Notes |
+|---|---|---|
+| **Frontend** | Vercel / Netlify | Serve `apps/frontend` as static assets. Update `BACKEND_URL` in `api.js`. |
+| **Backend** | Render / Railway | Set `FRONTEND_URL` for CORS. Run `npx prisma db push` in CI/CD. |
+| **Database** | Supabase / Neon / RDS | Managed PostgreSQL with connection pooling. |
 
----
+**Production build:**
 
-## 4. Deployment Notes
+```bash
+npm run build --prefix apps/backend
+npm run start:prod --prefix apps/backend
+```
 
-While the system can currently run on a single machine (with NestJS serving the static frontend files fallback), it is highly recommended to split deployments at scale:
+## Testing
 
-- **Frontend (Vercel / Netlify)**:
-  - Serve the `apps/frontend` directory as static assets.
-  - *Action Required*: Before deploying independently, update `api.js` and `main.js` to dynamically inject the production Backend URL instead of using hardcoded `localhost:3001` endpoints.
-- **Backend (Render / Railway / AWS)**:
-  - Configure `FRONTEND_URL` to match your Vercel URL to prevent CORS/cookie issues.
-  - Run the backend via standard npm scripts:
-    ```bash
-    npm run build --prefix apps/backend
-    npm run start:prod --prefix apps/backend
-    ```
-- **Database Migrations**: Remember to run `npx prisma deploy` (or `push`) in your CI/CD pipeline against your production PostgreSQL instance.
+```bash
+cd apps/backend
+npm run test:e2e
+```
+
+Integration tests verify concurrency safety (double-spend prevention), idempotency (duplicate return guard), and access control invariants.
+
+## License
+
+Private — All rights reserved.

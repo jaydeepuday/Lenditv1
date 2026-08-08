@@ -60,7 +60,7 @@ describe('Borrow Hardening (e2e)', () => {
     beforeAll(async () => {
         process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'test_access_secret';
         process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'test_refresh_secret';
-        process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/lendit_db?schema=public';
+        process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/lendit_db?schema=public';
 
         mockRedis = new RedisMock();
         const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -173,10 +173,7 @@ describe('Borrow Hardening (e2e)', () => {
         testItemId = item.id;
     });
 
-    afterAll(async () => {
-        await cleanDB(prisma);
-        await app.close();
-    });
+    // (single afterAll at end of describe block)
 
     async function cleanDB(p: PrismaService) {
         await p.walletTransaction.deleteMany({});
@@ -192,7 +189,7 @@ describe('Borrow Hardening (e2e)', () => {
     // TEST 1: Concurrency Double Spend — Escrow Phase
     // ─────────────────────────────────────────────
     it('concurrent processPayment requests: exactly one DEBIT and exactly one wallet cached decrement', async () => {
-        // Setup state: REQUESTED -> ACCEPTED
+        // Setup state: REQUESTED -> ACCEPTED -> PAYMENT_PENDING
         const borrowRes = await request(app.getHttpServer())
             .post('/api/v1/borrow')
             .set('Cookie', renterCookies)
@@ -208,6 +205,11 @@ describe('Borrow Hardening (e2e)', () => {
             .patch(`/api/v1/borrow/${borrowId}/respond`)
             .set('Cookie', lenderCookies)
             .send({ action: 'ACCEPTED' });
+
+        // Initiate checkout first (creates HOLD and moves to PAYMENT_PENDING)
+        await request(app.getHttpServer())
+            .post(`/api/v1/borrow/${borrowId}/initiate-checkout`)
+            .set('Cookie', renterCookies);
 
         // Fire THREE concurrent payment requests
         const [res1, res2, res3] = await Promise.all([
@@ -257,23 +259,36 @@ describe('Borrow Hardening (e2e)', () => {
             .set('Cookie', lenderCookies)
             .send({ action: 'ACCEPTED' });
 
+        // Initiate checkout first (creates HOLD), then process payment
+        await request(app.getHttpServer())
+            .post(`/api/v1/borrow/${borrowId}/initiate-checkout`)
+            .set('Cookie', renterCookies);
+
         await request(app.getHttpServer())
             .post(`/api/v1/borrow/${borrowId}/pay`)
             .set('Cookie', renterCookies);
 
+        // Fetch OTPs (lender-only endpoint)
+        const otpRes = await request(app.getHttpServer())
+            .get(`/api/v1/borrow/${borrowId}/otp`)
+            .set('Cookie', lenderCookies);
+        const { pickupOTP, returnOTP } = otpRes.body.data || otpRes.body;
+
+        // Collect with pickup OTP (renter action)
         await request(app.getHttpServer())
             .post(`/api/v1/borrow/${borrowId}/collect`)
-            .set('Cookie', renterCookies);
+            .set('Cookie', renterCookies)
+            .send({ otp: pickupOTP });
 
         // Lender starting wallet balance is $0 in DB
         const startingLWallet = await prisma.wallet.findUnique({ where: { userId: lenderId } });
         expect(startingLWallet!.balance).toBe(0);
 
-        // Act: Fire THREE concurrent return requests
+        // Act: Fire THREE concurrent return requests (renter sends return OTP)
         const [res1, res2, res3] = await Promise.all([
-            request(app.getHttpServer()).post(`/api/v1/borrow/${borrowId}/return`).set('Cookie', lenderCookies),
-            request(app.getHttpServer()).post(`/api/v1/borrow/${borrowId}/return`).set('Cookie', lenderCookies),
-            request(app.getHttpServer()).post(`/api/v1/borrow/${borrowId}/return`).set('Cookie', lenderCookies),
+            request(app.getHttpServer()).post(`/api/v1/borrow/${borrowId}/return`).set('Cookie', renterCookies).send({ otp: returnOTP }),
+            request(app.getHttpServer()).post(`/api/v1/borrow/${borrowId}/return`).set('Cookie', renterCookies).send({ otp: returnOTP }),
+            request(app.getHttpServer()).post(`/api/v1/borrow/${borrowId}/return`).set('Cookie', renterCookies).send({ otp: returnOTP }),
         ]);
 
         const statuses = [res1.statusCode, res2.statusCode, res3.statusCode].sort((a, b) => a - b);
