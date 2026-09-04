@@ -33,7 +33,9 @@ async function bootstrap() {
             'http://localhost:5501',
             'http://127.0.0.1:5500',
             'http://127.0.0.1:5501',
-            'https://lendit-ashen.vercel.app'
+            'https://lendit-ashen.vercel.app',
+            'https://www.lendit.shop',
+            'https://lendit.shop'
         ],
         credentials: true,
         methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
