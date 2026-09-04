@@ -135,7 +135,8 @@ export class AuthService {
             create: { userId, hash, attempts: 0, expiresAt, used: false },
         });
 
-
+        // Send the plaintext OTP to the user's email
+        await this.emailService.sendOtpEmail(email, otpCode, name);
     }
 
     // ─── Verify OTP ──────────────────────────────────────────────────────────
