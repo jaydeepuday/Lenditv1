@@ -9,8 +9,8 @@
     "start:prod": "node dist/src/main.js",
     "prisma:generate": "npx prisma generate",
     "prisma:push": "npx prisma db push",
-    "prisma:reset": "npx prisma db push --force-reset",
-    "render-build": "npx prisma generate && npx prisma db push --force-reset && nest build"
+    "prisma:reset": "echo ERROR: prisma:reset is disabled — use prisma migrate reset only on local dev databases",
+    "render-build": "npx prisma generate && npx prisma migrate deploy && nest build"
   },
   "dependencies": {
     "@nestjs/bull": "^11.0.4",
