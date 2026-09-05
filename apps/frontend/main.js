@@ -2597,78 +2597,20 @@ function renderChat(chatId) {
 
     $actionBar.innerHTML = `<div class="chat-action-bar" > ${locHtml}${actionHtml}</div> `;
 
-    // Input Locking and Banners based on Status
-    const isLocked = status === 'REQUESTED' || status === 'ACCEPTED';
-    if (isLocked) {
-      $input.disabled = true;
-      $input.style.display = 'none';
-      $send.style.display = 'none';
+    // Input is always enabled — both participants can chat freely.
+    // Contact-info filtering is enforced server-side by the gateway.
+    $input.disabled = false;
+    $input.placeholder = "Type a message...";
+    $send.disabled = false;
 
-      // Show predefined quick-ask buttons ONLY to the renter
-      if (isRenter) {
-        const predefinedHtml = `
-        <div style = "padding:12px 8px 4px; display:flex; flex-direction:column; gap:10px; width:100%;" >
-            <button
-              class="btn predefined-btn"
-              data-msg="Is this available?"
-              style="width:100%; padding:14px; font-size:0.95rem; font-weight:500; border-radius:24px; border:1.5px solid var(--color-purple-light); background:#fff; color:var(--color-text); cursor:pointer; transition:border-color 0.15s;"
-            >Is this available?</button>
-            <button
-              class="btn predefined-btn"
-              data-msg="Where is pickup?"
-              style="width:100%; padding:14px; font-size:0.95rem; font-weight:500; border-radius:24px; border:1.5px solid var(--color-purple-light); background:#fff; color:var(--color-text); cursor:pointer; transition:border-color 0.15s;"
-            >Where is pickup?</button>
-            <div style="text-align:center; font-size:0.85rem; color:var(--color-text-muted); padding-top:4px;">
-              🔒 Pay to unlock chat and get details instantly
-            </div>
-          </div>
-        `;
-        const inputBar = document.querySelector('.chat-input-bar');
-        if (inputBar) {
-          inputBar.innerHTML = predefinedHtml;
-          inputBar.style.flexDirection = 'column';
-          inputBar.querySelectorAll('.predefined-btn').forEach(btn => {
-            listen(btn, 'click', () => {
-              const tempMsg = {
-                id: 'temp-' + Date.now(),
-                content: btn.dataset.msg,
-                sender: { id: state.user.id, name: state.user.name },
-                senderId: state.user.id,
-                createdAt: new Date().toISOString()
-              };
-              appendMessage(tempMsg, true);
-              socket.emit('send-message', { chatId, content: btn.dataset.msg }, (response) => {
-                if (response && response.error) showError(response.error);
-              });
-            }, signal);
-          });
-        }
-      } else {
-        // Lender sees a waiting message instead of quick-ask buttons
-        const inputBar = document.querySelector('.chat-input-bar');
-        if (inputBar) {
-          inputBar.innerHTML = `
-        <div style = "padding:16px; text-align:center; color:var(--color-text-muted); font-size:0.9rem; font-weight:500;" >
-              ⏳ Waiting for renter to complete payment
-            </div>
-        `;
-          inputBar.style.flexDirection = 'column';
-        }
-      }
-    } else {
-      $input.disabled = false;
-      $input.placeholder = "Type a message...";
-      $send.disabled = false;
+    if (!document.getElementById('chat-warning-banner')) {
+      const banner = document.createElement('div');
+      banner.id = 'chat-warning-banner';
+      banner.style = "background:#fef3c7; color:#92400e; text-align:center; padding:10px 12px; font-size:0.8rem; font-weight:600; border-bottom:1px solid #fde68a;";
+      banner.textContent = "⚠️ Outside payments = NO support";
 
-      if (!document.getElementById('chat-warning-banner')) {
-        const banner = document.createElement('div');
-        banner.id = 'chat-warning-banner';
-        banner.style = "background:#fef3c7; color:#92400e; text-align:center; padding:10px 12px; font-size:0.8rem; font-weight:600; border-bottom:1px solid #fde68a;";
-        banner.textContent = "⚠️ Outside payments = NO support";
-
-        // Insert right above the chat window
-        $window.parentNode.insertBefore(banner, $window);
-      }
+      // Insert right above the chat window
+      $window.parentNode.insertBefore(banner, $window);
     }
 
     // Bind action buttons
@@ -2978,8 +2920,9 @@ window.reportUser = async function (userId) {
 // ─── Boot ────────────────────────────────────────────────────
 
 (async function boot() {
-  await checkAuth();
-  router();
+  router();                // Render immediately with guest UI (no blocking)
+  await checkAuth();       // Authenticate in background
+  router();                // Re-render with authenticated state
   // Start background polling for accepted requests (every 30s)
   if (state.user) {
     startAcceptedPoll();
