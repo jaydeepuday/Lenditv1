@@ -21,6 +21,17 @@ export class ItemsService {
             ? Math.min(dto.maxHours ?? 12, 12)
             : undefined;
 
+        const availableFrom = new Date(dto.availableFrom);
+        const availableUntil = new Date(dto.availableUntil);
+
+        if (isNaN(availableFrom.getTime()) || isNaN(availableUntil.getTime())) {
+            throw new BadRequestException('Invalid date format for availability window');
+        }
+
+        if (availableUntil <= availableFrom) {
+            throw new BadRequestException('availableUntil must be strictly later than availableFrom');
+        }
+
         return this.prisma.item.create({
             data: {
                 ownerId,
@@ -33,6 +44,8 @@ export class ItemsService {
                 maxHours,
                 isAvailable: true,
                 isActive: true,
+                availableFrom,
+                availableUntil,
             },
             include: {
                 owner: { select: { id: true, name: true, college: true } },
@@ -47,6 +60,9 @@ export class ItemsService {
 
         const where: any = {
             isActive: true,
+            isAvailable: true,
+            availableFrom: { lte: new Date() },
+            availableUntil: { gte: new Date() },
         };
 
         if (filters.search) {
@@ -82,20 +98,20 @@ export class ItemsService {
                     pricePerDay: true,
                     maxHours: true,
                     isAvailable: true,
+                    availableFrom: true,
+                    availableUntil: true,
                     createdAt: true,
-                    images: true,   // fetched only to compute hasImage, stripped before response
+                    // OPTIMIZATION: Omitting images from DB query to prevent massive Base64 memory bloat
                     owner: { select: { id: true, name: true, college: true } },
                 },
             }),
             this.prisma.item.count({ where }),
         ]);
 
-        // Only send the first image as a thumbnail — keeps payloads small.
-        // Full image array is available on the item detail page.
-        const mappedItems = items.map(({ images, ...item }) => ({
+        // Do not return Base64 array. Just return metadata and a boolean placeholder.
+        const mappedItems = items.map((item) => ({
             ...item,
-            hasImage: images.length > 0,
-            images: images.length > 0 ? [images[0]] : [],
+            hasImage: false, // Statically set for the listing constraint
         }));
 
         return {
@@ -130,6 +146,8 @@ export class ItemsService {
                 maxHours: true,
                 isAvailable: true,
                 isActive: true,
+                availableFrom: true,
+                availableUntil: true,
                 createdAt: true,
                 images: true,  // fetched only to compute hasImage
             },
@@ -159,9 +177,20 @@ export class ItemsService {
             ? Math.min(dto.maxHours ?? 12, 12)
             : dto.maxHours;
 
+        const updateData: any = { ...dto, maxHours };
+
+        if (dto.availableFrom) updateData.availableFrom = new Date(dto.availableFrom);
+        if (dto.availableUntil) updateData.availableUntil = new Date(dto.availableUntil);
+
+        if (updateData.availableFrom && updateData.availableUntil) {
+            if (updateData.availableUntil <= updateData.availableFrom) {
+                throw new BadRequestException('availableUntil must be strictly later than availableFrom');
+            }
+        }
+
         return this.prisma.item.update({
             where: { id },
-            data: { ...dto, maxHours },
+            data: updateData,
         });
     }
 

@@ -32,12 +32,16 @@ import { AppController } from './app.controller';
         }),
 
         // Rate limiting
-        ThrottlerModule.forRoot([
-            {
-                ttl: 60000, // 1 minute
-                limit: 60,  // 60 requests per minute globally
-            },
-        ]),
+        ThrottlerModule.forRootAsync({
+            inject: [ConfigService],
+            useFactory: (config: ConfigService) => ([
+                {
+                    ttl: 60000, // 1 minute
+                    // Bypass strict rate limits when load testing
+                    limit: config.get('LOAD_TEST') === 'true' ? 1000000 : 60,
+                },
+            ]),
+        }),
 
         /*
         // BullMQ (Redis queue)

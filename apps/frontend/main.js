@@ -864,7 +864,7 @@ async function renderItemDetail(id) {
               </div>
               <div style="margin-bottom:8px; display:flex; gap:8px;">
                 <span style="color:var(--color-text-muted); min-width:90px;">🕒 Availability:</span>
-                <span style="font-weight:600;">${escapeHtml(item.availabilityNote || "Flexible")}</span>
+                <span style="font-weight:600;">${new Date(item.availableFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric' })} to ${new Date(item.availableUntil).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric' })}</span>
               </div>
               <div style="display:flex; gap:8px;">
                 <span style="color:var(--color-text-muted); min-width:90px;">📦 Condition:</span>
@@ -935,11 +935,24 @@ async function renderItemDetail(id) {
       sessionStorage.removeItem('lendit_rebook_payload'); // Single-use restoration
     }
 
+    const availableFromUnix = new Date(item.availableFrom).getTime();
+    const availableUntilUnix = new Date(item.availableUntil).getTime();
+
     const dates = [];
     const now = new Date();
     for (let i = 0; i < 7; i++) {
       const d = new Date(now);
       d.setDate(d.getDate() + i);
+      // Start of this day
+      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0).getTime();
+      // End of this day
+      const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59).getTime();
+
+      // Check if this whole day is completely outside the availability window
+      if (dayEnd < availableFromUnix || dayStart > availableUntilUnix) {
+        continue; // Skip this date pill entirely
+      }
+
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, '0');
       const dd = String(d.getDate()).padStart(2, '0');
@@ -1000,17 +1013,28 @@ async function renderItemDetail(id) {
         html += `</div></div>`;
 
         if (stateStartHr !== null) {
-          html += `<div style="margin-top:16px;">
-                    <div style="font-weight:700; margin-bottom:12px; display:block; font-size:1rem;">⏰ Return Time</div>
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">`;
+          let foundValidEndHour = false;
+          let htmlEndPills = '';
 
           times.forEach(t => {
             if (t.val <= stateStartHr) return;
+
+            // Check if end time is within availability bounds
+            const [yyyy, mm, dd] = stateDate.split('-').map(Number);
+            const thisEndHourUnix = new Date(yyyy, mm - 1, dd, t.val, 0, 0).getTime();
+            if (thisEndHourUnix > availableUntilUnix) return;
+
+            foundValidEndHour = true;
             const bg = stateEndHr === t.val ? '#16a34a' : 'var(--color-surface-hover)';
             const color = stateEndHr === t.val ? '#fff' : 'var(--color-text-main)';
-            html += `<button type="button" class="end-pill" data-val="${t.val}" style="background:${bg}; color:${color}; border:1px solid ${stateEndHr === t.val ? '#16a34a' : 'var(--color-border)'}; padding:10px 18px; border-radius:999px; font-weight:600; cursor:pointer;">${t.label}</button>`;
+            htmlEndPills += `<button type="button" class="end-pill" data-val="${t.val}" style="background:${bg}; color:${color}; border:1px solid ${stateEndHr === t.val ? '#16a34a' : 'var(--color-border)'}; padding:10px 18px; border-radius:999px; font-weight:600; cursor:pointer;">${t.label}</button>`;
           });
-          html += `</div></div>`;
+
+          if (foundValidEndHour) {
+            html += `<div style="margin-top:16px;">
+                        <div style="font-weight:700; margin-bottom:12px; display:block; font-size:1rem;">⏰ Return Time</div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">${htmlEndPills}</div></div>`;
+          }
         }
       }
 
@@ -1840,6 +1864,17 @@ function renderListItem() {
               </div>
             </div>
 
+            <div class="price-inputs">
+              <div class="form-group">
+                <label for="item-available-from">Available From</label>
+                <input type="datetime-local" class="form-input" id="item-available-from" required />
+              </div>
+              <div class="form-group">
+                <label for="item-available-until">Available Until</label>
+                <input type="datetime-local" class="form-input" id="item-available-until" required />
+              </div>
+            </div>
+
             <div class="form-group" id="max-hours-group" style="display:none;">
               <label for="item-max-hours">Max hours (1–12)</label>
               <input type="number" class="form-input" id="item-max-hours" min="1" max="12" value="12" />
@@ -1876,6 +1911,11 @@ function renderListItem() {
   listen($priceHour, 'input', () => {
     $maxHoursGroup.style.display = $priceHour.value ? 'block' : 'none';
   }, signal);
+
+  // Set min datetimes
+  const nowStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  document.getElementById('item-available-from').min = nowStr;
+  document.getElementById('item-available-until').min = nowStr;
 
   // Handle image file selection → convert to base64 previews
   const $fileInput = document.getElementById('item-images-upload');
@@ -1965,8 +2005,16 @@ function renderListItem() {
     const description = document.getElementById('item-desc').value.trim();
     const category = document.getElementById('item-category').value;
     const pricePerHour = parseFloat($priceHour.value) || undefined;
-    const pricePerDay = parseFloat(document.getElementById('item-price-day').value) || undefined;
     const maxHours = pricePerHour ? (parseInt(document.getElementById('item-max-hours').value, 10) || 12) : undefined;
+
+    let availableFrom = document.getElementById('item-available-from').value;
+    let availableUntil = document.getElementById('item-available-until').value;
+
+    if (new Date(availableUntil) <= new Date(availableFrom)) {
+      showError('Available Until must be later than Available From');
+      return;
+    }
+
     const base64Raw = document.getElementById('item-images-base64').value;
     const images = base64Raw ? JSON.parse(base64Raw) : undefined;
 
@@ -1975,7 +2023,13 @@ function renderListItem() {
       return;
     }
 
-    const data = { title, description, category };
+    const data = {
+      title,
+      description,
+      category,
+      availableFrom: new Date(availableFrom).toISOString(),
+      availableUntil: new Date(availableUntil).toISOString()
+    };
     if (pricePerHour) data.pricePerHour = pricePerHour;
     if (pricePerDay) data.pricePerDay = pricePerDay;
     if (maxHours) data.maxHours = maxHours;

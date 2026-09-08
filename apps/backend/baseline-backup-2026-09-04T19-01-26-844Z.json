@@ -1,0 +1,53 @@
+{
+  "audit_logs": [],
+  "borrow_transactions": [],
+  "chats": [],
+  "items": [],
+  "messages": [],
+  "otps": [],
+  "refresh_tokens": [
+    {
+      "id": "0ca890f2-24fd-4b15-955d-48f35a1b94a3",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NjA0ZTNlOS00MjY2LTQ2OTYtOTUwNy0yOGU3NTczZDk4NDIiLCJlbWFpbCI6ImpheWRlZXAuZ18yMDI5QHdveHNlbi5lZHUuaW4iLCJyb2xlIjoiVVNFUiIsImlhdCI6MTc4ODU0NDIwNCwiZXhwIjoxNzg5MTQ5MDA0fQ.tWw8QSb6Rtbd4VJxbMBz4YvfgL4Wxs1QZZltSYlzfwM",
+      "userId": "5604e3e9-4266-4696-9507-28e7573d9842",
+      "expiresAt": "2026-09-11T12:20:04.032Z",
+      "createdAt": "2026-09-04T12:20:04.033Z"
+    },
+    {
+      "id": "7c09fd68-f4b4-4488-8598-15b72928bab6",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NjA0ZTNlOS00MjY2LTQ2OTYtOTUwNy0yOGU3NTczZDk4NDIiLCJlbWFpbCI6ImpheWRlZXAuZ18yMDI5QHdveHNlbi5lZHUuaW4iLCJyb2xlIjoiVVNFUiIsImlhdCI6MTc4ODU0NDQ1MiwiZXhwIjoxNzg5MTQ5MjUyfQ.XwRDiKwulD94wphmnnuR7XlvsnHBJURPsI5cNps_Iw4",
+      "userId": "5604e3e9-4266-4696-9507-28e7573d9842",
+      "expiresAt": "2026-09-11T12:24:12.734Z",
+      "createdAt": "2026-09-04T12:24:12.734Z"
+    }
+  ],
+  "reports": [],
+  "transaction_otps": [],
+  "users": [
+    {
+      "id": "5604e3e9-4266-4696-9507-28e7573d9842",
+      "email": "jaydeep.g_2029@woxsen.edu.in",
+      "passwordHash": "$2b$12$sssN0juJcfoE.jcGuv5Yc.xhxGmmzFAf44Ltkl4n6bnCLaMUBXP6O",
+      "name": "jaydeep",
+      "college": "Woxsen University",
+      "isVerified": true,
+      "role": "USER",
+      "warnings": 0,
+      "lastSeenAt": null,
+      "createdAt": "2026-09-04T12:14:42.035Z",
+      "updatedAt": "2026-09-04T12:14:42.035Z"
+    }
+  ],
+  "wallet_transactions": [],
+  "wallets": [
+    {
+      "id": "f60f8df2-3455-47f1-9c60-6273de15630d",
+      "userId": "5604e3e9-4266-4696-9507-28e7573d9842",
+      "balance": 0,
+      "holdBalance": 0,
+      "createdAt": "2026-09-04T12:14:42.141Z",
+      "updatedAt": "2026-09-04T12:14:42.141Z"
+    }
+  ],
+  "withdrawal_requests": []
+}

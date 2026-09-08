@@ -114,14 +114,30 @@ export class BorrowService implements OnModuleInit {
                 }
             }
 
-            // ── Item lookup (unchanged) ──────────────────────────────────────
-            const item = await tx.item.findUnique({
-                where: { id: dto.itemId },
-                select: { id: true, ownerId: true, isAvailable: true, pricePerHour: true, pricePerDay: true },
-            });
+            // ── Item lookup WITH exclusive row lock ──────────────────────────
+            // SELECT ... FOR UPDATE acquires an exclusive row-level lock on this
+            // Item row.  All concurrent requestBorrow transactions targeting the
+            // same item will block here until the holding transaction commits,
+            // which guarantees the subsequent overlap check sees committed data.
+            const [item] = await tx.$queryRaw<
+                { id: string; ownerId: string; isAvailable: boolean; isActive: boolean; pricePerHour: number | null; pricePerDay: number | null; availableFrom: Date; availableUntil: Date }[]
+            >`SELECT "id", "ownerId", "isAvailable", "isActive", "pricePerHour", "pricePerDay", "availableFrom", "availableUntil"
+              FROM "items"
+              WHERE "id" = ${dto.itemId}
+              FOR UPDATE`;
 
             if (!item) throw new NotFoundException('Item not found');
             if (item.ownerId === renterId) throw new ForbiddenException('You cannot borrow your own item');
+            if (!item.isActive) throw new BadRequestException('Item is no longer active');
+            if (!item.isAvailable) throw new BadRequestException('Item is currently not available for rent');
+
+            // Bounds Validation
+            if (reqStart < item.availableFrom) {
+                throw new BadRequestException('Requested start time is before the item\'s available window');
+            }
+            if (reqEnd > item.availableUntil) {
+                throw new BadRequestException('Requested end time is after the item\'s available window');
+            }
 
             // RATE LIMIT (Anti-Spam)
             const sixtySecondsAgo = new Date(Date.now() - 60 * 1000);

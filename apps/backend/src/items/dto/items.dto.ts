@@ -58,6 +58,14 @@ export class CreateItemDto {
     @Max(12)
     @Type(() => Number)
     maxHours?: number;
+
+    @IsString()
+    @IsNotEmpty()
+    availableFrom!: string;
+
+    @IsString()
+    @IsNotEmpty()
+    availableUntil!: string;
 }
 
 export class UpdateItemDto {
@@ -95,6 +103,14 @@ export class UpdateItemDto {
     @Max(12)
     @Type(() => Number)
     maxHours?: number;
+
+    @IsOptional()
+    @IsString()
+    availableFrom?: string;
+
+    @IsOptional()
+    @IsString()
+    availableUntil?: string;
 }
 
 export class ItemFilterDto {

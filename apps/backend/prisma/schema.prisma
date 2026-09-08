@@ -177,10 +177,15 @@ model Item {
   availabilityNote String?
   conditionNote    String?
 
+  // Availability Window
+  availableFrom    DateTime @default(now())
+  availableUntil   DateTime @default("2099-12-31T23:59:59Z")
+
   // Relations
   transactions BorrowTransaction[]
   chats        Chat[]
 
+  @@index([isActive, createdAt])
   @@map("items")
 }
 
